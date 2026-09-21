@@ -285,6 +285,7 @@
     }
 
     .modal-window {
+      position: relative;
       width: min(92vw, 980px);
       height: min(92vh, 900px);
       display: flex;
@@ -296,125 +297,53 @@
       box-shadow: 0 30px 90px rgba(0, 0, 0, .65);
     }
 
-    .modal-header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 13px 14px;
-      border-bottom: 1px solid #303036;
-      background: #1b1b1f;
-    }
-
-    .modal-title {
-      min-width: 0;
-      flex: 1;
-      overflow: hidden;
-      color: #eeeef2;
-      font-size: .94rem;
-      font-weight: 700;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .modal-close {
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      border: 1px solid #3b3b43;
-      border-radius: 8px;
-      background: #242429;
-      color: #fff;
-      font: inherit;
-      font-size: 1.15rem;
-      cursor: pointer;
-    }
-
-    .modal-close:hover {
-      background: #303036;
-    }
-
-    .modal-toolbar {
+    .modal-topbar {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-bottom: 1px solid #29292f;
-      background: #18181c;
-    }
-
-    .page-button {
-      min-width: 76px;
-      border: 1px solid #3d3d45;
-      border-radius: 8px;
-      padding: 8px 12px;
-      background: #242429;
-      color: #f4f4f6;
-      font: inherit;
-      font-size: .84rem;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .page-button:hover:not(:disabled) {
-      background: #303036;
-    }
-
-    .page-button:disabled {
-      opacity: .38;
-      cursor: default;
+      min-height: 48px;
+      padding: 10px 48px;
+      border-bottom: 1px solid #2c2c32;
+      background: #19191d;
     }
 
     .page-counter {
-      min-width: 92px;
       color: #b9b9c2;
       font-size: .84rem;
       font-weight: 700;
       text-align: center;
     }
 
-    .page-strip {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      padding: 9px 12px;
-      border-bottom: 1px solid #29292f;
-      background: #141417;
-      scrollbar-width: thin;
-    }
-
-    .page-chip {
-      min-width: 32px;
-      height: 30px;
-      flex: 0 0 auto;
-      border: 1px solid #34343b;
-      border-radius: 7px;
-      background: #202024;
-      color: #aaaab4;
+    .modal-close {
+      position: absolute;
+      top: 7px;
+      right: 9px;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #a8a8b0;
       font: inherit;
-      font-size: .78rem;
-      font-weight: 700;
+      font-size: 1.2rem;
       cursor: pointer;
+      transition: background .15s ease, color .15s ease;
     }
 
-    .page-chip:hover {
-      border-color: #555560;
-      color: #fff;
-    }
-
-    .page-chip.active {
-      border-color: #6698d0;
-      background: #3f6f9f;
+    .modal-close:hover {
+      background: #28282e;
       color: #fff;
     }
 
     .modal-body {
+      position: relative;
       min-height: 0;
       flex: 1;
       overflow: auto;
-      padding: 20px;
+      padding: 20px 64px;
       background: #0f0f12;
     }
 
@@ -424,6 +353,40 @@
       align-items: flex-start;
       justify-content: center;
     }
+
+    .page-arrow {
+      position: absolute;
+      top: 50%;
+      z-index: 5;
+      width: 42px;
+      height: 64px;
+      display: grid;
+      place-items: center;
+      transform: translateY(-50%);
+      border: 0;
+      border-radius: 10px;
+      background: rgba(30, 30, 35, .72);
+      color: #d8d8de;
+      font: inherit;
+      font-size: 2rem;
+      font-weight: 300;
+      line-height: 1;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease, opacity .15s ease;
+    }
+
+    .page-arrow:hover:not(:disabled) {
+      background: rgba(48, 48, 55, .94);
+      color: #fff;
+    }
+
+    .page-arrow:disabled {
+      opacity: .18;
+      cursor: default;
+    }
+
+    .page-arrow.prev { left: 10px; }
+    .page-arrow.next { right: 10px; }
 
     #modalCanvas {
       display: block;
@@ -518,23 +481,19 @@
 
   <div id="pdfModal" class="pdf-modal" aria-hidden="true">
     <section class="modal-window" role="dialog" aria-modal="true" aria-label="PDF preview">
-      <header class="modal-header">
-        <div id="modalTitle" class="modal-title">PDF Preview</div>
+      <div class="modal-topbar">
+        <div id="pageCounter" class="page-counter">1 of 1</div>
         <button id="modalClose" class="modal-close" type="button" aria-label="Close preview">×</button>
-      </header>
-
-      <div class="modal-toolbar">
-        <button id="prevPage" class="page-button" type="button">← Previous</button>
-        <div id="pageCounter" class="page-counter">Page 1 of 1</div>
-        <button id="nextPage" class="page-button" type="button">Next →</button>
       </div>
 
-      <div id="pageStrip" class="page-strip"></div>
-
       <div class="modal-body">
+        <button id="prevPage" class="page-arrow prev" type="button" aria-label="Previous page">‹</button>
+
         <div id="modalCanvasWrap" class="modal-canvas-wrap">
           <canvas id="modalCanvas"></canvas>
         </div>
+
+        <button id="nextPage" class="page-arrow next" type="button" aria-label="Next page">›</button>
       </div>
     </section>
   </div>
@@ -554,12 +513,10 @@
     const kitchenGrid = document.getElementById("kitchenGrid");
     const uploadTriggers = document.querySelectorAll(".upload-trigger");
     const pdfModal = document.getElementById("pdfModal");
-    const modalTitle = document.getElementById("modalTitle");
     const modalClose = document.getElementById("modalClose");
     const prevPage = document.getElementById("prevPage");
     const nextPage = document.getElementById("nextPage");
     const pageCounter = document.getElementById("pageCounter");
-    const pageStrip = document.getElementById("pageStrip");
     const modalCanvas = document.getElementById("modalCanvas");
     const modalCanvasWrap = document.getElementById("modalCanvasWrap");
 
@@ -637,14 +594,14 @@
 
       card.addEventListener("click", () => {
         const pdf = pdfDocuments.get(card);
-        if (pdf) openPdfPreview(pdf, file.name);
+        if (pdf) openPdfPreview(pdf);
       });
 
       card.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           const pdf = pdfDocuments.get(card);
-          if (pdf) openPdfPreview(pdf, file.name);
+          if (pdf) openPdfPreview(pdf);
         }
       });
 
@@ -757,11 +714,9 @@
       preview.replaceChildren(canvas, scanOverlay, scanLabel);
     }
 
-    function openPdfPreview(pdf, fileName) {
+    function openPdfPreview(pdf) {
       activePdf = pdf;
       activePage = 1;
-      modalTitle.textContent = fileName;
-      buildPageStrip(pdf.numPages);
       pdfModal.classList.add("open");
       pdfModal.setAttribute("aria-hidden", "false");
       document.body.style.overflow = "hidden";
@@ -780,26 +735,6 @@
       }
     }
 
-    function buildPageStrip(totalPages) {
-      pageStrip.replaceChildren();
-
-      for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
-        const chip = document.createElement("button");
-        chip.className = "page-chip";
-        chip.type = "button";
-        chip.textContent = pageNumber;
-        chip.dataset.page = String(pageNumber);
-
-        chip.addEventListener("click", (event) => {
-          event.stopPropagation();
-          activePage = pageNumber;
-          renderModalPage();
-        });
-
-        pageStrip.appendChild(chip);
-      }
-    }
-
     async function renderModalPage() {
       if (!activePdf) return;
 
@@ -808,16 +743,7 @@
 
       prevPage.disabled = activePage <= 1;
       nextPage.disabled = activePage >= activePdf.numPages;
-      pageCounter.textContent = "Page " + activePage + " of " + activePdf.numPages;
-
-      pageStrip.querySelectorAll(".page-chip").forEach((chip) => {
-        chip.classList.toggle("active", Number(chip.dataset.page) === activePage);
-      });
-
-      const activeChip = pageStrip.querySelector(".page-chip.active");
-      if (activeChip) {
-        activeChip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-      }
+      pageCounter.textContent = activePage + " of " + activePdf.numPages;
 
       if (modalRenderTask) {
         try { modalRenderTask.cancel(); } catch (_) {}
