@@ -286,46 +286,47 @@
 
     .modal-window {
       position: relative;
-      width: min(92vw, 980px);
-      height: min(92vh, 900px);
+      width: fit-content;
+      max-width: 96vw;
+      max-height: 96vh;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
-      border: 1px solid #3b3b43;
-      border-radius: 14px;
-      background: #151518;
-      box-shadow: 0 30px 90px rgba(0, 0, 0, .65);
+      align-items: center;
     }
 
     .modal-topbar {
       position: relative;
+      width: 100%;
+      min-height: 42px;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 48px;
-      padding: 10px 48px;
-      border-bottom: 1px solid #2c2c32;
-      background: #19191d;
+      margin-bottom: 8px;
     }
 
     .page-counter {
-      color: #b9b9c2;
-      font-size: .84rem;
+      padding: 7px 11px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 999px;
+      background: rgba(24,24,28,.92);
+      color: #d2d2d8;
+      font-size: .82rem;
       font-weight: 700;
       text-align: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,.28);
     }
 
     .modal-close {
       position: absolute;
-      top: 7px;
-      right: 9px;
+      top: 4px;
+      right: 2px;
       width: 34px;
       height: 34px;
       display: grid;
       place-items: center;
       border: 0;
       border-radius: 8px;
-      background: transparent;
+      background: rgba(24,24,28,.82);
       color: #a8a8b0;
       font: inherit;
       font-size: 1.2rem;
@@ -340,15 +341,15 @@
 
     .modal-body {
       position: relative;
-      min-height: 0;
-      flex: 1;
+      width: fit-content;
+      max-width: 96vw;
+      max-height: calc(96vh - 50px);
       overflow: auto;
-      padding: 20px 64px;
-      background: #0f0f12;
+      padding: 0 56px;
     }
 
     .modal-canvas-wrap {
-      min-height: 100%;
+      width: fit-content;
       display: flex;
       align-items: flex-start;
       justify-content: center;
@@ -767,7 +768,7 @@
 
         const baseViewport = page.getViewport({ scale: 1 });
         const availableWidth = Math.min(window.innerWidth * .78, 850);
-        const availableHeight = Math.max(400, window.innerHeight * .68);
+        const availableHeight = Math.max(360, window.innerHeight * .82);
         const scale = Math.min(
           availableWidth / baseViewport.width,
           availableHeight / baseViewport.height,
