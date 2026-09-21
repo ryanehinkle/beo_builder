@@ -269,22 +269,76 @@
 
     .merge-area {
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
       margin-top: 52px;
       padding-top: 28px;
       border-top: 1px solid #25252b;
     }
 
-    .merge-button {
-      min-width: 180px;
-      border: 1px solid #63a97a;
+    .merge-options {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .options-label {
+      color: #8f8f99;
+      font-size: .76rem;
+      font-weight: 750;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .segmented-control {
+      display: flex;
+      padding: 4px;
+      border: 1px solid #34343b;
       border-radius: 11px;
-      padding: 14px 28px;
+      background: #18181c;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+    }
+
+    .segmented-control input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .segmented-control label {
+      padding: 9px 14px;
+      border-radius: 8px;
+      color: #94949e;
+      font-size: .84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+      user-select: none;
+    }
+
+    .segmented-control input:checked + label {
+      background: #2b2b31;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.22);
+    }
+
+    .segmented-control input:focus-visible + label {
+      outline: 2px solid rgba(103,162,226,.55);
+      outline-offset: 2px;
+    }
+
+    .merge-button {
+      min-width: 210px;
+      border: 1px solid #63a97a;
+      border-radius: 12px;
+      padding: 16px 34px;
       background: #3f8f5d;
       color: #fff;
       font: inherit;
-      font-size: 1rem;
-      font-weight: 750;
+      font-size: 1.1rem;
+      font-weight: 800;
       cursor: pointer;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.13);
       transition: background .16s ease, transform .16s ease, opacity .16s ease;
@@ -513,6 +567,17 @@
     </section>
 
     <div class="merge-area">
+      <div class="merge-options">
+        <div class="options-label">Options</div>
+        <div class="segmented-control" role="radiogroup" aria-label="Merge output">
+          <input id="printableMode" type="radio" name="mergeMode" value="printable" checked />
+          <label for="printableMode">Printable</label>
+
+          <input id="noBlanksMode" type="radio" name="mergeMode" value="no-blanks" />
+          <label for="noBlanksMode">Remove blank pages</label>
+        </div>
+      </div>
+
       <button id="mergeButton" class="merge-button" type="button" disabled>Merge</button>
     </div>
   </main>
@@ -564,6 +629,7 @@
 
     const pdfDocuments = new WeakMap();
     const pdfSourceBytes = new WeakMap();
+    const pdfBlankPages = new WeakMap();
 
     let uploadOrder = 0;
     let pendingFiles = 0;
@@ -669,6 +735,7 @@
 
         let firstPageText = "";
         const beoNumbers = new Set();
+        const blankPages = new Set();
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
           const page = await pdf.getPage(pageNumber);
@@ -680,6 +747,10 @@
           const textContent = await page.getTextContent();
           const pageText = textContent.items.map((item) => item.str).join(" ");
 
+          if (await isBlankPage(page, textContent)) {
+            blankPages.add(pageNumber - 1);
+          }
+
           if (pageNumber === 1) firstPageText = pageText;
 
           for (const match of pageText.matchAll(/BEO\s*#\s*(\d+)/gi)) {
@@ -690,6 +761,8 @@
           card.style.setProperty("--scan-progress", progress + "%");
           scanLabel.textContent = "Reading BEOs… " + progress + "%";
         }
+
+        pdfBlankPages.set(card, blankPages);
 
         const beoType = detectBeoType(firstPageText);
 
@@ -935,6 +1008,46 @@
       }
     });
 
+    async function isBlankPage(page, textContent) {
+      const hasText = textContent.items.some(
+        (item) => typeof item.str === "string" && item.str.trim().length > 0
+      );
+
+      if (hasText) return false;
+
+      const operatorList = await page.getOperatorList();
+      const OPS = pdfjsLib.OPS;
+
+      const visibleOps = new Set([
+        OPS.showText,
+        OPS.showSpacedText,
+        OPS.nextLineShowText,
+        OPS.nextLineSetSpacingShowText,
+        OPS.paintImageXObject,
+        OPS.paintInlineImageXObject,
+        OPS.paintImageMaskXObject,
+        OPS.paintImageMaskXObjectGroup,
+        OPS.paintImageXObjectRepeat,
+        OPS.paintImageMaskXObjectRepeat,
+        OPS.paintJpegXObject,
+        OPS.shadingFill,
+        OPS.constructPath,
+        OPS.fill,
+        OPS.eoFill,
+        OPS.stroke,
+        OPS.closeStroke,
+        OPS.fillStroke,
+        OPS.eoFillStroke,
+        OPS.closeFillStroke,
+        OPS.closeEOFillStroke,
+        OPS.rawFillPath,
+        OPS.paintFormXObjectBegin,
+        OPS.beginAnnotation
+      ].filter(Number.isFinite));
+
+      return !operatorList.fnArray.some((op) => visibleOps.has(op));
+    }
+
     async function ensureEvenPageCount(bytes) {
       const pdf = await PDFDocument.load(bytes);
 
@@ -962,15 +1075,23 @@
       try {
         const managerCards = getSortedCards(managerGrid);
         const kitchenCards = getSortedCards(kitchenGrid);
+        const removeBlanks =
+          document.querySelector('input[name="mergeMode"]:checked')?.value === "no-blanks";
 
         if (managerCards.length) {
-          const bytes = await mergeCards(managerCards);
-          downloadMergedPdf(bytes, buildMergedFilename("Managers", managerCards));
+          const bytes = await mergeCards(managerCards, removeBlanks);
+          downloadMergedPdf(
+            bytes,
+            buildMergedFilename("Managers", managerCards, removeBlanks)
+          );
         }
 
         if (kitchenCards.length) {
-          const bytes = await mergeCards(kitchenCards);
-          downloadMergedPdf(bytes, buildMergedFilename("Kitchens", kitchenCards));
+          const bytes = await mergeCards(kitchenCards, removeBlanks);
+          downloadMergedPdf(
+            bytes,
+            buildMergedFilename("Kitchens", kitchenCards, removeBlanks)
+          );
         }
       } catch (error) {
         console.error("PDF merge failed:", error);
@@ -989,7 +1110,7 @@
       });
     }
 
-    async function mergeCards(cards) {
+    async function mergeCards(cards, removeBlanks = false) {
       const merged = await PDFDocument.create();
 
       for (const card of cards) {
@@ -997,22 +1118,29 @@
         if (!sourceBytes) continue;
 
         const sourcePdf = await PDFDocument.load(sourceBytes);
-        const pageIndices = sourcePdf.getPageIndices();
-        const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
+        let pageIndices = sourcePdf.getPageIndices();
 
+        if (removeBlanks) {
+          const blankPages = pdfBlankPages.get(card) || new Set();
+          pageIndices = pageIndices.filter((index) => !blankPages.has(index));
+        }
+
+        if (!pageIndices.length) continue;
+
+        const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
         copiedPages.forEach((page) => merged.addPage(page));
       }
 
       return await merged.save();
     }
 
-    function buildMergedFilename(label, cards) {
+    function buildMergedFilename(label, cards, noBlanks = false) {
       const datedCards = cards.filter(
         (card) => Number(card.dataset.sortDate) < Number.MAX_SAFE_INTEGER
       );
 
       if (!datedCards.length) {
-        return label + ".pdf";
+        return label + (noBlanks ? " (No blanks)" : "") + ".pdf";
       }
 
       const firstDate = new Date(Number(datedCards[0].dataset.sortDate));
@@ -1024,7 +1152,9 @@
         formatFilenameDate(firstDate) +
         "-" +
         formatFilenameDate(lastDate) +
-        "].pdf"
+        "]" +
+        (noBlanks ? " (No blanks)" : "") +
+        ".pdf"
       );
     }
 
