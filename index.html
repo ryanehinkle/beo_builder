@@ -141,6 +141,7 @@
 
     .pdf-card {
       --scan-progress: 0%;
+      cursor: pointer;
       min-width: 0;
       padding: 0 12px 14px;
       overflow: hidden;
@@ -266,6 +267,178 @@
       white-space: nowrap;
     }
 
+    .pdf-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+      background: rgba(4, 4, 6, .56);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .pdf-modal.open {
+      display: flex;
+    }
+
+    .modal-window {
+      width: min(92vw, 980px);
+      height: min(92vh, 900px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #3b3b43;
+      border-radius: 14px;
+      background: #151518;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, .65);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 13px 14px;
+      border-bottom: 1px solid #303036;
+      background: #1b1b1f;
+    }
+
+    .modal-title {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      color: #eeeef2;
+      font-size: .94rem;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .modal-close {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid #3b3b43;
+      border-radius: 8px;
+      background: #242429;
+      color: #fff;
+      font: inherit;
+      font-size: 1.15rem;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      background: #303036;
+    }
+
+    .modal-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #29292f;
+      background: #18181c;
+    }
+
+    .page-button {
+      min-width: 76px;
+      border: 1px solid #3d3d45;
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: #242429;
+      color: #f4f4f6;
+      font: inherit;
+      font-size: .84rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .page-button:hover:not(:disabled) {
+      background: #303036;
+    }
+
+    .page-button:disabled {
+      opacity: .38;
+      cursor: default;
+    }
+
+    .page-counter {
+      min-width: 92px;
+      color: #b9b9c2;
+      font-size: .84rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .page-strip {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 9px 12px;
+      border-bottom: 1px solid #29292f;
+      background: #141417;
+      scrollbar-width: thin;
+    }
+
+    .page-chip {
+      min-width: 32px;
+      height: 30px;
+      flex: 0 0 auto;
+      border: 1px solid #34343b;
+      border-radius: 7px;
+      background: #202024;
+      color: #aaaab4;
+      font: inherit;
+      font-size: .78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .page-chip:hover {
+      border-color: #555560;
+      color: #fff;
+    }
+
+    .page-chip.active {
+      border-color: #6698d0;
+      background: #3f6f9f;
+      color: #fff;
+    }
+
+    .modal-body {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      padding: 20px;
+      background: #0f0f12;
+    }
+
+    .modal-canvas-wrap {
+      min-height: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    #modalCanvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      background: #fff;
+      box-shadow: 0 4px 22px rgba(0, 0, 0, .4);
+    }
+
+    .modal-loading {
+      margin-top: 40px;
+      color: #92929c;
+      font-size: .9rem;
+    }
+
     @media (max-width: 1350px) {
       .pdf-grid {
         grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -343,6 +516,29 @@
     </section>
   </main>
 
+  <div id="pdfModal" class="pdf-modal" aria-hidden="true">
+    <section class="modal-window" role="dialog" aria-modal="true" aria-label="PDF preview">
+      <header class="modal-header">
+        <div id="modalTitle" class="modal-title">PDF Preview</div>
+        <button id="modalClose" class="modal-close" type="button" aria-label="Close preview">×</button>
+      </header>
+
+      <div class="modal-toolbar">
+        <button id="prevPage" class="page-button" type="button">← Previous</button>
+        <div id="pageCounter" class="page-counter">Page 1 of 1</div>
+        <button id="nextPage" class="page-button" type="button">Next →</button>
+      </div>
+
+      <div id="pageStrip" class="page-strip"></div>
+
+      <div class="modal-body">
+        <div id="modalCanvasWrap" class="modal-canvas-wrap">
+          <canvas id="modalCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <script type="module">
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 
@@ -357,8 +553,22 @@
     const managerGrid = document.getElementById("managerGrid");
     const kitchenGrid = document.getElementById("kitchenGrid");
     const uploadTriggers = document.querySelectorAll(".upload-trigger");
+    const pdfModal = document.getElementById("pdfModal");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalClose = document.getElementById("modalClose");
+    const prevPage = document.getElementById("prevPage");
+    const nextPage = document.getElementById("nextPage");
+    const pageCounter = document.getElementById("pageCounter");
+    const pageStrip = document.getElementById("pageStrip");
+    const modalCanvas = document.getElementById("modalCanvas");
+    const modalCanvasWrap = document.getElementById("modalCanvasWrap");
+
+    const pdfDocuments = new WeakMap();
 
     let uploadOrder = 0;
+    let activePdf = null;
+    let activePage = 1;
+    let modalRenderTask = null;
 
     uploadTriggers.forEach((button) => {
       button.addEventListener("click", () => pdfInput.click());
@@ -421,6 +631,22 @@
       name.title = file.name;
 
       card.append(meta, preview, name);
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-label", "Open PDF preview for " + file.name);
+
+      card.addEventListener("click", () => {
+        const pdf = pdfDocuments.get(card);
+        if (pdf) openPdfPreview(pdf, file.name);
+      });
+
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          const pdf = pdfDocuments.get(card);
+          if (pdf) openPdfPreview(pdf, file.name);
+        }
+      });
 
       managerSection.classList.add("visible");
       managerGrid.appendChild(card);
@@ -428,6 +654,7 @@
       try {
         const data = new Uint8Array(await file.arrayBuffer());
         const pdf = await pdfjsLib.getDocument({ data }).promise;
+        pdfDocuments.set(card, pdf);
 
         let firstPageText = "";
         const beoNumbers = new Set();
@@ -529,6 +756,170 @@
 
       preview.replaceChildren(canvas, scanOverlay, scanLabel);
     }
+
+    function openPdfPreview(pdf, fileName) {
+      activePdf = pdf;
+      activePage = 1;
+      modalTitle.textContent = fileName;
+      buildPageStrip(pdf.numPages);
+      pdfModal.classList.add("open");
+      pdfModal.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+      renderModalPage();
+    }
+
+    function closePdfPreview() {
+      pdfModal.classList.remove("open");
+      pdfModal.setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+      activePdf = null;
+
+      if (modalRenderTask) {
+        try { modalRenderTask.cancel(); } catch (_) {}
+        modalRenderTask = null;
+      }
+    }
+
+    function buildPageStrip(totalPages) {
+      pageStrip.replaceChildren();
+
+      for (let pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
+        const chip = document.createElement("button");
+        chip.className = "page-chip";
+        chip.type = "button";
+        chip.textContent = pageNumber;
+        chip.dataset.page = String(pageNumber);
+
+        chip.addEventListener("click", (event) => {
+          event.stopPropagation();
+          activePage = pageNumber;
+          renderModalPage();
+        });
+
+        pageStrip.appendChild(chip);
+      }
+    }
+
+    async function renderModalPage() {
+      if (!activePdf) return;
+
+      const pdfForRender = activePdf;
+      const pageNumberForRender = activePage;
+
+      prevPage.disabled = activePage <= 1;
+      nextPage.disabled = activePage >= activePdf.numPages;
+      pageCounter.textContent = "Page " + activePage + " of " + activePdf.numPages;
+
+      pageStrip.querySelectorAll(".page-chip").forEach((chip) => {
+        chip.classList.toggle("active", Number(chip.dataset.page) === activePage);
+      });
+
+      const activeChip = pageStrip.querySelector(".page-chip.active");
+      if (activeChip) {
+        activeChip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+
+      if (modalRenderTask) {
+        try { modalRenderTask.cancel(); } catch (_) {}
+        modalRenderTask = null;
+      }
+
+      modalCanvas.style.display = "none";
+
+      let loading = modalCanvasWrap.querySelector(".modal-loading");
+      if (!loading) {
+        loading = document.createElement("div");
+        loading.className = "modal-loading";
+        loading.textContent = "Loading page…";
+        modalCanvasWrap.appendChild(loading);
+      }
+
+      try {
+        const page = await pdfForRender.getPage(pageNumberForRender);
+
+        if (pdfForRender !== activePdf || pageNumberForRender !== activePage) return;
+
+        const baseViewport = page.getViewport({ scale: 1 });
+        const availableWidth = Math.min(window.innerWidth * .78, 850);
+        const availableHeight = Math.max(400, window.innerHeight * .68);
+        const scale = Math.min(
+          availableWidth / baseViewport.width,
+          availableHeight / baseViewport.height,
+          1.65
+        );
+
+        const viewport = page.getViewport({ scale });
+        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+        const context = modalCanvas.getContext("2d");
+
+        modalCanvas.width = Math.floor(viewport.width * outputScale);
+        modalCanvas.height = Math.floor(viewport.height * outputScale);
+        modalCanvas.style.width = Math.floor(viewport.width) + "px";
+        modalCanvas.style.height = Math.floor(viewport.height) + "px";
+
+        modalRenderTask = page.render({
+          canvasContext: context,
+          viewport,
+          transform:
+            outputScale !== 1
+              ? [outputScale, 0, 0, outputScale, 0, 0]
+              : null
+        });
+
+        await modalRenderTask.promise;
+
+        if (pdfForRender !== activePdf || pageNumberForRender !== activePage) return;
+
+        loading.remove();
+        modalCanvas.style.display = "block";
+        modalRenderTask = null;
+      } catch (error) {
+        if (error?.name !== "RenderingCancelledException") {
+          console.error("Modal PDF render failed:", error);
+        }
+      }
+    }
+
+    prevPage.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!activePdf || activePage <= 1) return;
+      activePage -= 1;
+      renderModalPage();
+    });
+
+    nextPage.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!activePdf || activePage >= activePdf.numPages) return;
+      activePage += 1;
+      renderModalPage();
+    });
+
+    modalClose.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closePdfPreview();
+    });
+
+    pdfModal.addEventListener("click", (event) => {
+      if (event.target === pdfModal) closePdfPreview();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (!pdfModal.classList.contains("open")) return;
+
+      if (event.key === "Escape") {
+        closePdfPreview();
+      } else if (event.key === "ArrowLeft" && activePage > 1) {
+        activePage -= 1;
+        renderModalPage();
+      } else if (
+        event.key === "ArrowRight" &&
+        activePdf &&
+        activePage < activePdf.numPages
+      ) {
+        activePage += 1;
+        renderModalPage();
+      }
+    });
 
     function detectBeoType(text) {
       if (/Kitchen\s+Catering\s+BEO/i.test(text) || /Kitchen\s+BEO/i.test(text)) {
