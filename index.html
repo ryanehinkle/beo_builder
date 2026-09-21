@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BEO Builder</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f5f6f8;
+      color: #1f2937;
+    }
+
+    main {
+      width: min(90%, 520px);
+      text-align: center;
+      background: #ffffff;
+      padding: 48px 32px;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      font-size: clamp(2rem, 6vw, 3rem);
+      margin-bottom: 28px;
+    }
+
+    .upload-button {
+      display: inline-block;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 24px;
+      font: inherit;
+      font-weight: 600;
+      font-size: 1rem;
+      color: #ffffff;
+      background: #2563eb;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .upload-button:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    .upload-button:active {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>BEO Builder</h1>
+    <button class="upload-button" type="button">Upload BEO</button>
+  </main>
+</body>
+</html>
