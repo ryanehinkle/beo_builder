@@ -267,6 +267,39 @@
       white-space: nowrap;
     }
 
+    .merge-area {
+      display: flex;
+      justify-content: center;
+      margin-top: 52px;
+      padding-top: 28px;
+      border-top: 1px solid #25252b;
+    }
+
+    .merge-button {
+      min-width: 180px;
+      border: 1px solid #6698d0;
+      border-radius: 11px;
+      padding: 14px 28px;
+      background: #5185bd;
+      color: #fff;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 750;
+      cursor: pointer;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.13);
+      transition: background .16s ease, transform .16s ease, opacity .16s ease;
+    }
+
+    .merge-button:hover:not(:disabled) {
+      background: #5e93cc;
+      transform: translateY(-1px);
+    }
+
+    .merge-button:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
     .pdf-modal {
       position: fixed;
       inset: 0;
@@ -478,6 +511,10 @@
       <h2 class="section-header">Kitchen BEOs</h2>
       <div id="kitchenGrid" class="pdf-grid" aria-live="polite"></div>
     </section>
+
+    <div class="merge-area">
+      <button id="mergeButton" class="merge-button" type="button" disabled>Merge</button>
+    </div>
   </main>
 
   <div id="pdfModal" class="pdf-modal" aria-hidden="true">
@@ -501,6 +538,7 @@
 
   <script type="module">
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
+    import { PDFDocument } from "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm";
 
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
@@ -520,10 +558,13 @@
     const pageCounter = document.getElementById("pageCounter");
     const modalCanvas = document.getElementById("modalCanvas");
     const modalCanvasWrap = document.getElementById("modalCanvasWrap");
+    const mergeButton = document.getElementById("mergeButton");
 
     const pdfDocuments = new WeakMap();
+    const pdfSourceFiles = new WeakMap();
 
     let uploadOrder = 0;
+    let pendingFiles = 0;
     let activePdf = null;
     let activePage = 1;
     let modalRenderTask = null;
@@ -544,6 +585,9 @@
       landing.style.display = "none";
       workspace.classList.add("active");
 
+      pendingFiles += files.length;
+      updateMergeButton();
+
       for (const file of files) addPdfCard(file);
       pdfInput.value = "";
     });
@@ -555,6 +599,7 @@
       card.className = "pdf-card";
       card.dataset.sortDate = String(Number.MAX_SAFE_INTEGER);
       card.dataset.uploadOrder = String(order);
+      pdfSourceFiles.set(card, file);
 
       const meta = document.createElement("div");
       meta.className = "pdf-meta";
@@ -670,6 +715,8 @@
         sortGrid(managerGrid);
         sortGrid(kitchenGrid);
         card.classList.add("loaded");
+        pendingFiles -= 1;
+        updateMergeButton();
       } catch (error) {
         dateLabel.textContent = "Could not read PDF";
         eventLabel.textContent = "";
@@ -681,6 +728,8 @@
         preview.appendChild(errorMessage);
 
         card.classList.add("loaded");
+        pendingFiles -= 1;
+        updateMergeButton();
         console.error("PDF processing failed:", error);
       }
     }
@@ -880,6 +929,108 @@
       }
     });
 
+    function updateMergeButton() {
+      const hasFiles = managerGrid.children.length > 0 || kitchenGrid.children.length > 0;
+      mergeButton.disabled = !hasFiles || pendingFiles > 0;
+      mergeButton.textContent = pendingFiles > 0 ? "Reading BEOs…" : "Merge";
+    }
+
+    mergeButton.addEventListener("click", async () => {
+      if (mergeButton.disabled) return;
+
+      mergeButton.disabled = true;
+      mergeButton.textContent = "Merging…";
+
+      try {
+        const managerCards = getSortedCards(managerGrid);
+        const kitchenCards = getSortedCards(kitchenGrid);
+
+        if (managerCards.length) {
+          const bytes = await mergeCards(managerCards);
+          downloadMergedPdf(bytes, buildMergedFilename("Managers", managerCards));
+        }
+
+        if (kitchenCards.length) {
+          const bytes = await mergeCards(kitchenCards);
+          downloadMergedPdf(bytes, buildMergedFilename("Kitchens", kitchenCards));
+        }
+      } catch (error) {
+        console.error("PDF merge failed:", error);
+        alert("Something went wrong while merging the PDFs.");
+      } finally {
+        mergeButton.textContent = "Merge";
+        updateMergeButton();
+      }
+    });
+
+    function getSortedCards(grid) {
+      return Array.from(grid.children).sort((a, b) => {
+        const dateDiff = Number(a.dataset.sortDate) - Number(b.dataset.sortDate);
+        if (dateDiff !== 0) return dateDiff;
+        return Number(a.dataset.uploadOrder) - Number(b.dataset.uploadOrder);
+      });
+    }
+
+    async function mergeCards(cards) {
+      const merged = await PDFDocument.create();
+
+      for (const card of cards) {
+        const file = pdfSourceFiles.get(card);
+        if (!file) continue;
+
+        const sourceBytes = await file.arrayBuffer();
+        const sourcePdf = await PDFDocument.load(sourceBytes);
+        const pageIndices = sourcePdf.getPageIndices();
+        const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
+
+        copiedPages.forEach((page) => merged.addPage(page));
+      }
+
+      return await merged.save();
+    }
+
+    function buildMergedFilename(label, cards) {
+      const datedCards = cards.filter(
+        (card) => Number(card.dataset.sortDate) < Number.MAX_SAFE_INTEGER
+      );
+
+      if (!datedCards.length) {
+        return label + ".pdf";
+      }
+
+      const firstDate = new Date(Number(datedCards[0].dataset.sortDate));
+      const lastDate = new Date(Number(datedCards[datedCards.length - 1].dataset.sortDate));
+
+      return (
+        label +
+        " [" +
+        formatFilenameDate(firstDate) +
+        "-" +
+        formatFilenameDate(lastDate) +
+        "].pdf"
+      );
+    }
+
+    function formatFilenameDate(date) {
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(date.getUTCDate()).padStart(2, "0");
+      return month + "." + day;
+    }
+
+    function downloadMergedPdf(bytes, filename) {
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
     function detectBeoType(text) {
       if (/Kitchen\s+Catering\s+BEO/i.test(text) || /Kitchen\s+BEO/i.test(text)) {
         return "kitchen";
@@ -918,15 +1069,7 @@
     }
 
     function sortGrid(grid) {
-      const cards = Array.from(grid.children);
-
-      cards.sort((a, b) => {
-        const dateDiff = Number(a.dataset.sortDate) - Number(b.dataset.sortDate);
-        if (dateDiff !== 0) return dateDiff;
-        return Number(a.dataset.uploadOrder) - Number(b.dataset.uploadOrder);
-      });
-
-      cards.forEach((card) => grid.appendChild(card));
+      getSortedCards(grid).forEach((card) => grid.appendChild(card));
     }
   </script>
 </body>
