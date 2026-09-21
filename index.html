@@ -112,9 +112,29 @@
       font-size: .98rem;
     }
 
+    .beo-section {
+      display: none;
+    }
+
+    .beo-section.visible {
+      display: block;
+    }
+
+    .beo-section + .beo-section {
+      margin-top: 42px;
+    }
+
+    .section-header {
+      margin-bottom: 16px;
+      color: #f4f4f6;
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -.01em;
+    }
+
     .pdf-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      grid-template-columns: repeat(8, minmax(0, 1fr));
       gap: 18px;
       align-items: stretch;
     }
@@ -246,6 +266,24 @@
       white-space: nowrap;
     }
 
+    @media (max-width: 1350px) {
+      .pdf-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1050px) {
+      .pdf-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 780px) {
+      .pdf-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
     @media (max-width: 650px) {
       .workspace {
         width: min(92vw, 1500px);
@@ -294,7 +332,15 @@
       <button class="upload-button upload-trigger" type="button">Add BEOs</button>
     </header>
 
-    <section id="pdfGrid" class="pdf-grid" aria-live="polite"></section>
+    <section id="managerSection" class="beo-section">
+      <h2 class="section-header">Manager BEOs</h2>
+      <div id="managerGrid" class="pdf-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="kitchenSection" class="beo-section">
+      <h2 class="section-header">Kitchen BEOs</h2>
+      <div id="kitchenGrid" class="pdf-grid" aria-live="polite"></div>
+    </section>
   </main>
 
   <script type="module">
@@ -306,7 +352,10 @@
     const pdfInput = document.getElementById("pdfInput");
     const landing = document.getElementById("landing");
     const workspace = document.getElementById("workspace");
-    const pdfGrid = document.getElementById("pdfGrid");
+    const managerSection = document.getElementById("managerSection");
+    const kitchenSection = document.getElementById("kitchenSection");
+    const managerGrid = document.getElementById("managerGrid");
+    const kitchenGrid = document.getElementById("kitchenGrid");
     const uploadTriggers = document.querySelectorAll(".upload-trigger");
 
     let uploadOrder = 0;
@@ -372,7 +421,9 @@
       name.title = file.name;
 
       card.append(meta, preview, name);
-      pdfGrid.appendChild(card);
+
+      managerSection.classList.add("visible");
+      managerGrid.appendChild(card);
 
       try {
         const data = new Uint8Array(await file.arrayBuffer());
@@ -402,6 +453,18 @@
           scanLabel.textContent = "Reading BEOs… " + progress + "%";
         }
 
+        const beoType = detectBeoType(firstPageText);
+
+        if (beoType === "kitchen") {
+          kitchenSection.classList.add("visible");
+          kitchenGrid.appendChild(card);
+        } else {
+          managerSection.classList.add("visible");
+          managerGrid.appendChild(card);
+        }
+
+        updateSectionVisibility();
+
         const eventDate = extractEventDate(firstPageText);
 
         if (eventDate) {
@@ -417,7 +480,8 @@
           eventCount === 1 ? "1 event" : eventCount + " events";
         eventLabel.classList.remove("loading-text");
 
-        sortCards();
+        sortGrid(managerGrid);
+        sortGrid(kitchenGrid);
         card.classList.add("loaded");
       } catch (error) {
         dateLabel.textContent = "Could not read PDF";
@@ -466,6 +530,23 @@
       preview.replaceChildren(canvas, scanOverlay, scanLabel);
     }
 
+    function detectBeoType(text) {
+      if (/Kitchen\s+Catering\s+BEO/i.test(text) || /Kitchen\s+BEO/i.test(text)) {
+        return "kitchen";
+      }
+
+      if (/Manager\s+Catering\s+BEO/i.test(text) || /Manager\s+BEO/i.test(text)) {
+        return "manager";
+      }
+
+      return "manager";
+    }
+
+    function updateSectionVisibility() {
+      managerSection.classList.toggle("visible", managerGrid.children.length > 0);
+      kitchenSection.classList.toggle("visible", kitchenGrid.children.length > 0);
+    }
+
     function extractEventDate(text) {
       const match = text.match(/Event\s*Date:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
       if (!match) return null;
@@ -486,8 +567,8 @@
       }).format(date);
     }
 
-    function sortCards() {
-      const cards = Array.from(pdfGrid.children);
+    function sortGrid(grid) {
+      const cards = Array.from(grid.children);
 
       cards.sort((a, b) => {
         const dateDiff = Number(a.dataset.sortDate) - Number(b.dataset.sortDate);
@@ -495,7 +576,7 @@
         return Number(a.dataset.uploadOrder) - Number(b.dataset.uploadOrder);
       });
 
-      cards.forEach((card) => pdfGrid.appendChild(card));
+      cards.forEach((card) => grid.appendChild(card));
     }
   </script>
 </body>
