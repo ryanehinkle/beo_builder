@@ -20,50 +20,52 @@
       min-height: 100vh;
       font-family: Arial, Helvetica, sans-serif;
       background:
-        radial-gradient(circle at 50% 0%, #19191d 0%, #0d0d0f 42%, #080809 78%);
+        radial-gradient(circle at 50% 30%, #17171a 0%, #0d0d0f 38%, #080809 72%);
       color: #f5f5f7;
     }
 
-    .app {
-      width: min(94vw, 1500px);
-      margin: 0 auto;
-      padding: 44px 0 72px;
+    #pdfInput {
+      display: none;
     }
 
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-      margin-bottom: 36px;
+    .landing {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
     }
 
-    .title-wrap {
-      min-width: 0;
+    .landing-card {
+      width: min(92vw, 440px);
+      text-align: center;
+      background: #18181b;
+      padding: 46px 36px;
+      border: 1px solid #3a3a40;
+      border-radius: 12px;
+      box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
     h1 {
       font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      font-size: clamp(2.3rem, 7vw, 3.35rem);
       line-height: 1;
       letter-spacing: -0.035em;
       color: #ffffff;
       text-shadow: 2px 2px 0 #2d2d31;
     }
 
-    .subtitle {
-      margin-top: 10px;
-      color: #9d9da7;
-      font-size: 0.95rem;
+    .landing h1 {
+      margin-bottom: 30px;
     }
 
     .upload-button {
-      flex: 0 0 auto;
       border: 1px solid #6698d0;
-      border-radius: 10px;
-      padding: 13px 20px;
+      border-radius: 11px;
+      padding: 15px 22px;
       font: inherit;
-      font-size: 0.98rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: #ffffff;
       background: #5185bd;
@@ -73,6 +75,10 @@
         background 0.16s ease,
         transform 0.16s ease,
         box-shadow 0.16s ease;
+    }
+
+    .landing .upload-button {
+      width: 100%;
     }
 
     .upload-button:hover {
@@ -93,17 +99,39 @@
       outline-offset: 3px;
     }
 
-    #pdfInput {
+    .workspace {
       display: none;
+      width: min(94vw, 1500px);
+      margin: 0 auto;
+      padding: 44px 0 72px;
     }
 
-    .empty-state {
-      border: 1px dashed #36363d;
-      border-radius: 14px;
-      padding: 60px 24px;
-      text-align: center;
-      background: rgba(24, 24, 27, 0.58);
-      color: #8d8d97;
+    .workspace.active {
+      display: block;
+    }
+
+    .workspace-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 36px;
+    }
+
+    .workspace-title h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+    }
+
+    .subtitle {
+      margin-top: 9px;
+      color: #9d9da7;
+      font-size: 0.95rem;
+    }
+
+    .workspace .upload-button {
+      flex: 0 0 auto;
+      padding: 13px 20px;
+      font-size: 0.98rem;
     }
 
     .pdf-grid {
@@ -179,18 +207,18 @@
     }
 
     @media (max-width: 650px) {
-      .app {
+      .workspace {
         width: min(92vw, 1500px);
         padding-top: 28px;
       }
 
-      .header {
+      .workspace-header {
         align-items: stretch;
         flex-direction: column;
         margin-bottom: 28px;
       }
 
-      .upload-button {
+      .workspace .upload-button {
         width: 100%;
       }
 
@@ -217,24 +245,24 @@
 </head>
 
 <body>
-  <main class="app">
-    <header class="header">
-      <div class="title-wrap">
-        <h1>BEO Builder</h1>
-        <p class="subtitle">Upload the BEO PDFs you want to work with.</p>
-      </div>
+  <input id="pdfInput" type="file" accept="application/pdf,.pdf" multiple />
 
-      <div>
-        <button class="upload-button" id="uploadButton" type="button">
-          Upload BEOs
-        </button>
-        <input id="pdfInput" type="file" accept="application/pdf,.pdf" multiple />
-      </div>
-    </header>
-
-    <section id="emptyState" class="empty-state">
-      No PDFs uploaded yet.
+  <main id="landing" class="landing">
+    <section class="landing-card">
+      <h1>BEO Builder</h1>
+      <button class="upload-button upload-trigger" type="button">Upload BEOs</button>
     </section>
+  </main>
+
+  <main id="workspace" class="workspace">
+    <header class="workspace-header">
+      <div class="workspace-title">
+        <h1>BEO Builder</h1>
+        <p class="subtitle">Uploaded BEO PDFs</p>
+      </div>
+
+      <button class="upload-button upload-trigger" type="button">Add BEOs</button>
+    </header>
 
     <section id="pdfGrid" class="pdf-grid" aria-live="polite"></section>
   </main>
@@ -245,16 +273,19 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
-    const uploadButton = document.getElementById("uploadButton");
     const pdfInput = document.getElementById("pdfInput");
+    const landing = document.getElementById("landing");
+    const workspace = document.getElementById("workspace");
     const pdfGrid = document.getElementById("pdfGrid");
-    const emptyState = document.getElementById("emptyState");
+    const uploadTriggers = document.querySelectorAll(".upload-trigger");
 
-    uploadButton.addEventListener("click", () => {
-      pdfInput.click();
+    uploadTriggers.forEach((button) => {
+      button.addEventListener("click", () => {
+        pdfInput.click();
+      });
     });
 
-    pdfInput.addEventListener("change", async (event) => {
+    pdfInput.addEventListener("change", (event) => {
       const files = Array.from(event.target.files || []).filter(
         (file) =>
           file.type === "application/pdf" ||
@@ -265,13 +296,13 @@
         return;
       }
 
-      emptyState.hidden = true;
+      landing.style.display = "none";
+      workspace.classList.add("active");
 
       for (const file of files) {
         addPdfCard(file);
       }
 
-      // Allows the same file to be selected again later if needed.
       pdfInput.value = "";
     });
 
