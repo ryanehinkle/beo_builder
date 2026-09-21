@@ -563,7 +563,7 @@
     const mergeButton = document.getElementById("mergeButton");
 
     const pdfDocuments = new WeakMap();
-    const pdfSourceFiles = new WeakMap();
+    const pdfSourceBytes = new WeakMap();
 
     let uploadOrder = 0;
     let pendingFiles = 0;
@@ -601,7 +601,6 @@
       card.className = "pdf-card";
       card.dataset.sortDate = String(Number.MAX_SAFE_INTEGER);
       card.dataset.uploadOrder = String(order);
-      pdfSourceFiles.set(card, file);
 
       const meta = document.createElement("div");
       meta.className = "pdf-meta";
@@ -659,8 +658,13 @@
       managerGrid.appendChild(card);
 
       try {
-        const data = new Uint8Array(await file.arrayBuffer());
-        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const originalBytes = new Uint8Array(await file.arrayBuffer());
+        const normalizedBytes = await ensureEvenPageCount(originalBytes);
+
+        // Keep a separate copy for merging because PDF.js may transfer/detach its input buffer.
+        pdfSourceBytes.set(card, normalizedBytes.slice());
+
+        const pdf = await pdfjsLib.getDocument({ data: normalizedBytes.slice() }).promise;
         pdfDocuments.set(card, pdf);
 
         let firstPageText = "";
@@ -931,6 +935,18 @@
       }
     });
 
+    async function ensureEvenPageCount(bytes) {
+      const pdf = await PDFDocument.load(bytes);
+
+      if (pdf.getPageCount() % 2 === 1) {
+        const lastPage = pdf.getPage(pdf.getPageCount() - 1);
+        pdf.addPage([lastPage.getWidth(), lastPage.getHeight()]);
+        return new Uint8Array(await pdf.save());
+      }
+
+      return bytes;
+    }
+
     function updateMergeButton() {
       const hasFiles = managerGrid.children.length > 0 || kitchenGrid.children.length > 0;
       mergeButton.disabled = !hasFiles || pendingFiles > 0;
@@ -977,10 +993,9 @@
       const merged = await PDFDocument.create();
 
       for (const card of cards) {
-        const file = pdfSourceFiles.get(card);
-        if (!file) continue;
+        const sourceBytes = pdfSourceBytes.get(card);
+        if (!sourceBytes) continue;
 
-        const sourceBytes = await file.arrayBuffer();
         const sourcePdf = await PDFDocument.load(sourceBytes);
         const pageIndices = sourcePdf.getPageIndices();
         const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
