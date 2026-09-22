@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BEO Builder</title>
+  <link rel="icon" type="image/png" href="assets/beo-logo.png" />
+  <link rel="apple-touch-icon" href="assets/beo-logo.png" />
 
   <style>
     :root { color-scheme: dark; }
@@ -52,7 +54,41 @@
       text-shadow: 2px 2px 0 #2d2d31;
     }
 
-    .landing h1 { margin-bottom: 30px; }
+    .landing-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 30px;
+    }
+
+    .landing-brand-logo {
+      width: 78px;
+      height: 78px;
+      object-fit: contain;
+      filter: drop-shadow(0 7px 18px rgba(81, 133, 189, .16));
+    }
+
+    .landing h1 { margin-bottom: 0; }
+
+    .workspace-brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+
+    .workspace-brand-logo {
+      width: 46px;
+      height: 46px;
+      flex: 0 0 auto;
+      object-fit: contain;
+      filter: drop-shadow(0 5px 12px rgba(81, 133, 189, .12));
+    }
+
+    .workspace-brand-copy {
+      min-width: 0;
+    }
 
     .upload-button {
       border: 1px solid #6698d0;
@@ -142,7 +178,10 @@
       margin-bottom: 36px;
     }
 
-    .workspace-title h1 { font-size: clamp(2rem, 4vw, 3rem); }
+    .workspace-title h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      white-space: nowrap;
+    }
 
     .subtitle {
       margin-top: 9px;
@@ -744,7 +783,10 @@
 
   <main id="landing" class="landing">
     <section class="landing-card">
-      <h1>BEO Builder</h1>
+      <div class="landing-brand">
+        <img src="assets/beo-logo.png" alt="" class="landing-brand-logo" />
+        <h1>BEO Builder</h1>
+      </div>
       <div class="landing-actions">
         <button class="upload-button upload-trigger" type="button">Upload BEOs</button>
         <button class="help-button help-trigger" type="button">How to use</button>
@@ -755,8 +797,13 @@
   <main id="workspace" class="workspace">
     <header class="workspace-header">
       <div class="workspace-title">
-        <h1>BEO Builder</h1>
-        <p class="subtitle">Uploaded BEO PDFs</p>
+        <div class="workspace-brand">
+          <img src="assets/beo-logo.png" alt="" class="workspace-brand-logo" />
+          <div class="workspace-brand-copy">
+            <h1>BEO Builder</h1>
+            <p class="subtitle">Uploaded BEO PDFs</p>
+          </div>
+        </div>
       </div>
       <div class="workspace-actions">
         <button class="help-button help-trigger" type="button">How to use</button>
