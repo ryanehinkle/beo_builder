@@ -562,30 +562,23 @@
       line-height: 1.55;
     }
 
-    .help-screenshot-placeholder {
-      min-height: 210px;
-      display: grid;
-      place-items: center;
+    .help-screenshot-frame {
+      width: 100%;
+      aspect-ratio: 2 / 1;
+      overflow: hidden;
       margin-top: 15px;
-      padding: 20px;
-      border: 1px dashed #505058;
+      border: 1px solid #3b3b43;
       border-radius: 10px;
       background: #111114;
-      color: #686872;
-      font-size: .82rem;
-      font-weight: 700;
-      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,.22);
     }
 
-    .help-note {
-      margin-top: 24px;
-      padding: 13px 15px;
-      border: 1px solid #34343b;
-      border-radius: 10px;
-      background: #202024;
-      color: #a9a9b2;
-      font-size: .85rem;
-      line-height: 1.5;
+    .help-screenshot {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
     }
 
     .pdf-modal {
@@ -857,11 +850,14 @@
             Start with batch merging Kitchen and Manager BEOs for each day. You do not need to rename files,
             put them in date order, or organize them yourself.
           </p>
-          <!-- SCREENSHOT PLACEHOLDER 1:
-               Replace the div below with:
-               <img src="images/step-1.png" alt="Daily batch merged BEO files" class="help-screenshot">
-          -->
-          <div class="help-screenshot-placeholder">Screenshot placeholder — daily batch merged files</div>
+          <div class="help-screenshot-frame">
+            <img
+              src="assets/how-to-step-1.webp"
+              alt="Topgolf Document Merge screen with daily events and Kitchen and Manager BEO documents selected"
+              class="help-screenshot"
+              loading="lazy"
+            />
+          </div>
         </section>
 
         <section class="help-step">
@@ -871,8 +867,14 @@
             Click <strong>Upload BEOs</strong> and select all of the PDFs you want to combine. Again,
             no manual organization is needed. It will read the files and separate/organize them automatically.
           </p>
-          <!-- SCREENSHOT PLACEHOLDER 2 -->
-          <div class="help-screenshot-placeholder">Screenshot placeholder — selecting multiple PDFs</div>
+          <div class="help-screenshot-frame">
+            <img
+              src="assets/how-to-step-2.webp"
+              alt="Windows file picker selecting multiple BEO PDF files for upload"
+              class="help-screenshot"
+              loading="lazy"
+            />
+          </div>
         </section>
 
         <section class="help-step">
@@ -884,8 +886,14 @@
             an even number of pages so the next BEO starts correctly when the final file is printed
             double-sided.
           </p>
-          <!-- SCREENSHOT PLACEHOLDER 3 -->
-          <div class="help-screenshot-placeholder">Screenshot placeholder — organized Manager / Kitchen tiles</div>
+          <div class="help-screenshot-frame">
+            <img
+              src="assets/how-to-step-3.webp"
+              alt="BEO Builder showing Manager and Kitchen BEO PDFs automatically organized by date"
+              class="help-screenshot"
+              loading="lazy"
+            />
+          </div>
         </section>
 
         <section class="help-step">
@@ -896,8 +904,14 @@
             pages</strong> creates a compact version without blank pages for digital viewing. For Kitchen BEOs,
             you can also automatically remove flex events that contain no Kitchen items.
           </p>
-          <!-- SCREENSHOT PLACEHOLDER 4 -->
-          <div class="help-screenshot-placeholder">Screenshot placeholder — merge options</div>
+          <div class="help-screenshot-frame">
+            <img
+              src="assets/how-to-step-4.webp"
+              alt="BEO Builder merge options with Printable mode and Kitchen flex removal selected"
+              class="help-screenshot"
+              loading="lazy"
+            />
+          </div>
         </section>
 
         <section class="help-step">
@@ -907,14 +921,16 @@
             Click <strong>Merge</strong>. The finished Manager and Kitchen PDFs are generated and downloaded
             automatically, they will be ordered and named with their date range.
           </p>
-          <!-- SCREENSHOT PLACEHOLDER 5 -->
-          <div class="help-screenshot-placeholder">Screenshot placeholder — final Merge button and downloads</div>
+          <div class="help-screenshot-frame">
+            <img
+              src="assets/how-to-step-5.webp"
+              alt="BEO Builder Merge button with completed Manager and Kitchen PDF downloads"
+              class="help-screenshot"
+              loading="lazy"
+            />
+          </div>
         </section>
 
-        <div class="help-note">
-          The screenshot areas are intentionally placeholders for now. Each one has an HTML comment
-          directly above it so you can easily swap in your own image later.
-        </div>
       </div>
     </section>
   </div>
