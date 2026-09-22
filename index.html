@@ -658,6 +658,7 @@
     const pdfBlankPages = new WeakMap();
     const pdfKitchenFlexPages = new WeakMap();
     const pdfSyntheticBlankIndex = new WeakMap();
+    const pdfEvents = new WeakMap();
 
     let uploadOrder = 0;
     let pendingFiles = 0;
@@ -694,6 +695,7 @@
       const card = document.createElement("article");
       card.className = "pdf-card";
       card.dataset.sortDate = String(Number.MAX_SAFE_INTEGER);
+      card.dataset.sortTime = String(Number.MAX_SAFE_INTEGER);
       card.dataset.uploadOrder = String(order);
 
       const meta = document.createElement("div");
@@ -803,10 +805,14 @@
 
             if (!eventPages.has(currentBeoNumber)) {
               eventPages.set(currentBeoNumber, {
+                beoNumber: currentBeoNumber,
                 pages: [],
                 hasKitchenItems: false,
                 hasEventNotes: false,
-                hasEventHeader: false
+                hasEventHeader: false,
+                dateMs: null,
+                startMinutes: null,
+                sequence: eventPages.size
               });
             }
           }
@@ -817,6 +823,16 @@
             event.hasKitchenItems ||= hasKitchenItems(pageText);
             event.hasEventNotes ||= /EVENT\s+NOTES/i.test(pageText);
             event.hasEventHeader ||= /Event\s*Date:/i.test(pageText);
+
+            if (event.dateMs === null) {
+              const eventDate = extractEventDate(pageText);
+              if (eventDate) event.dateMs = eventDate.getTime();
+            }
+
+            if (event.startMinutes === null) {
+              const startMinutes = extractEventStartMinutes(pageText);
+              if (startMinutes !== null) event.startMinutes = startMinutes;
+            }
           }
 
           const progress = Math.max(8, Math.round((pageNumber / pdf.numPages) * 100));
@@ -844,6 +860,13 @@
 
         pdfKitchenFlexPages.set(card, kitchenFlexPages);
 
+        const parsedEvents = Array.from(eventPages.values()).map((event) => ({
+          ...event,
+          isKitchenFlex: kitchenFlexPages.size > 0 &&
+            event.pages.some((pageIndex) => kitchenFlexPages.has(pageIndex))
+        }));
+        pdfEvents.set(card, parsedEvents);
+
         if (beoType === "kitchen") {
           kitchenSection.classList.add("visible");
           kitchenGrid.appendChild(card);
@@ -860,6 +883,11 @@
           dateLabel.textContent = formatEventDate(eventDate);
           dateLabel.classList.remove("loading-text");
           card.dataset.sortDate = String(eventDate.getTime());
+
+          const firstStartMinutes = extractEventStartMinutes(firstPageText);
+          if (firstStartMinutes !== null) {
+            card.dataset.sortTime = String(firstStartMinutes);
+          }
         } else {
           dateLabel.textContent = "Date not found";
         }
@@ -1210,6 +1238,10 @@
       return Array.from(grid.children).sort((a, b) => {
         const dateDiff = Number(a.dataset.sortDate) - Number(b.dataset.sortDate);
         if (dateDiff !== 0) return dateDiff;
+
+        const timeDiff = Number(a.dataset.sortTime) - Number(b.dataset.sortTime);
+        if (timeDiff !== 0) return timeDiff;
+
         return Number(a.dataset.uploadOrder) - Number(b.dataset.uploadOrder);
       });
     }
@@ -1219,28 +1251,86 @@
       { removeBlanks = false, removeKitchenFlexes = false } = {}
     ) {
       const merged = await PDFDocument.create();
+      const eventUnits = [];
 
+      // Build event-level units from every uploaded PDF first. This lets us sort
+      // the actual events by date and time instead of only sorting whole files.
       for (const card of cards) {
         const sourceBytes = pdfSourceBytes.get(card);
         if (!sourceBytes) continue;
 
         const sourcePdf = await PDFDocument.load(sourceBytes);
-        let pageIndices = sourcePdf.getPageIndices();
+        const events = pdfEvents.get(card) || [];
 
-        if (removeKitchenFlexes) {
-          const flexPages = pdfKitchenFlexPages.get(card) || new Set();
-
-          // Remove the ENTIRE flex-only Kitchen event block. Because blank pages
-          // inherit the previous BEO # during scanning, duplex spacer pages for a
-          // removed event are included in flexPages and disappear with the event.
-          pageIndices = pageIndices.filter((index) => !flexPages.has(index));
-
-          // Discard the blank that was added when this upload was first normalized.
-          // We recalculate this individual file's balance from scratch below.
-          const syntheticBlankIndex = pdfSyntheticBlankIndex.get(card);
-          if (Number.isInteger(syntheticBlankIndex)) {
-            pageIndices = pageIndices.filter((index) => index !== syntheticBlankIndex);
+        if (events.length) {
+          for (const event of events) {
+            eventUnits.push({
+              card,
+              sourcePdf,
+              event,
+              uploadOrder: Number(card.dataset.uploadOrder)
+            });
           }
+        } else {
+          // Fallback for an unexpected PDF where no BEO number could be parsed.
+          eventUnits.push({
+            card,
+            sourcePdf,
+            event: {
+              beoNumber: "",
+              pages: sourcePdf.getPageIndices(),
+              isKitchenFlex: false,
+              dateMs: Number(card.dataset.sortDate),
+              startMinutes: Number(card.dataset.sortTime),
+              sequence: 0
+            },
+            uploadOrder: Number(card.dataset.uploadOrder)
+          });
+        }
+      }
+
+      eventUnits.sort((a, b) => {
+        const aDate = Number.isFinite(a.event.dateMs)
+          ? a.event.dateMs
+          : Number.MAX_SAFE_INTEGER;
+        const bDate = Number.isFinite(b.event.dateMs)
+          ? b.event.dateMs
+          : Number.MAX_SAFE_INTEGER;
+
+        if (aDate !== bDate) return aDate - bDate;
+
+        const aTime = Number.isFinite(a.event.startMinutes)
+          ? a.event.startMinutes
+          : Number.MAX_SAFE_INTEGER;
+        const bTime = Number.isFinite(b.event.startMinutes)
+          ? b.event.startMinutes
+          : Number.MAX_SAFE_INTEGER;
+
+        if (aTime !== bTime) return aTime - bTime;
+        if (a.uploadOrder !== b.uploadOrder) {
+          return a.uploadOrder - b.uploadOrder;
+        }
+
+        return (a.event.sequence || 0) - (b.event.sequence || 0);
+      });
+
+      for (const unit of eventUnits) {
+        const { card, sourcePdf, event } = unit;
+
+        if (removeKitchenFlexes && event.isKitchenFlex) {
+          continue;
+        }
+
+        let pageIndices = [...event.pages];
+
+        // The old upload-level synthetic blank is discarded and recalculated at
+        // the EVENT level below. This avoids attaching a file-level blank to the
+        // wrong final BEO.
+        const syntheticBlankIndex = pdfSyntheticBlankIndex.get(card);
+        if (Number.isInteger(syntheticBlankIndex)) {
+          pageIndices = pageIndices.filter(
+            (index) => index !== syntheticBlankIndex
+          );
         }
 
         if (removeBlanks) {
@@ -1250,32 +1340,21 @@
 
         if (!pageIndices.length) continue;
 
-        // Build this uploaded PDF as its own adjusted document first.
-        // This guarantees each individual Kitchen file is balanced before merging.
-        const adjustedPdf = await PDFDocument.create();
-        const adjustedPages = await adjustedPdf.copyPages(sourcePdf, pageIndices);
-        adjustedPages.forEach((page) => adjustedPdf.addPage(page));
+        const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
+        copiedPages.forEach((page) => merged.addPage(page));
 
-        // Printable mode: after flex removal, normalize THIS individual file
-        // back to an even page count by adding one blank only at its end.
-        if (
-          removeKitchenFlexes &&
-          !removeBlanks &&
-          adjustedPdf.getPageCount() % 2 === 1
-        ) {
-          const lastPage = adjustedPdf.getPage(adjustedPdf.getPageCount() - 1);
-          adjustedPdf.addPage([lastPage.getWidth(), lastPage.getHeight()]);
+        // Printable sanity check: EVERY individual event must occupy an even
+        // number of pages before the next BEO begins. If its retained page count
+        // is odd, add one blank page immediately after that event.
+        if (!removeBlanks && pageIndices.length % 2 === 1) {
+          const lastSourcePage =
+            sourcePdf.getPage(pageIndices[pageIndices.length - 1]);
+
+          merged.addPage([
+            lastSourcePage.getWidth(),
+            lastSourcePage.getHeight()
+          ]);
         }
-
-        const adjustedBytes = await adjustedPdf.save();
-        const adjustedForMerge = await PDFDocument.load(adjustedBytes);
-        const adjustedIndices = adjustedForMerge.getPageIndices();
-        const pagesForMerge = await merged.copyPages(
-          adjustedForMerge,
-          adjustedIndices
-        );
-
-        pagesForMerge.forEach((page) => merged.addPage(page));
       }
 
       return await merged.save();
@@ -1351,6 +1430,23 @@
       const year = Number(match[3]);
 
       return new Date(Date.UTC(year, month - 1, day));
+    }
+
+    function extractEventStartMinutes(text) {
+      const match = text.match(
+        /Event\s*Time:\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i
+      );
+
+      if (!match) return null;
+
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      const meridiem = match[3].toUpperCase();
+
+      if (hour === 12) hour = 0;
+      if (meridiem === "PM") hour += 12;
+
+      return hour * 60 + minute;
     }
 
     function formatEventDate(date) {
