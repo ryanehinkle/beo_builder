@@ -770,6 +770,7 @@
         const beoNumbers = new Set();
         const blankPages = new Set();
         const eventPages = new Map();
+        let currentBeoNumber = null;
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
           const page = await pdf.getPage(pageNumber);
@@ -785,23 +786,33 @@
             blankPages.add(pageNumber - 1);
           }
 
-          if (pageNumber === 1) firstPageText = pageText;
+          // Use the first actual event page for file metadata. This also makes
+          // uploads robust if a PDF ever happens to begin with a blank page.
+          if (!firstPageText && /Event\s*Date:/i.test(pageText)) {
+            firstPageText = pageText;
+          }
 
           const beoMatch = pageText.match(/BEO\s*#\s*(\d+)/i);
-          if (beoMatch) {
-            const beoNumber = beoMatch[1];
-            beoNumbers.add(beoNumber);
 
-            if (!eventPages.has(beoNumber)) {
-              eventPages.set(beoNumber, {
+          // A new BEO # starts a new event. Until another BEO # appears,
+          // EVERY following page still belongs to the current event — including
+          // intentionally blank duplex-printing pages.
+          if (beoMatch) {
+            currentBeoNumber = beoMatch[1];
+            beoNumbers.add(currentBeoNumber);
+
+            if (!eventPages.has(currentBeoNumber)) {
+              eventPages.set(currentBeoNumber, {
                 pages: [],
                 hasKitchenItems: false,
                 hasEventNotes: false,
                 hasEventHeader: false
               });
             }
+          }
 
-            const event = eventPages.get(beoNumber);
+          if (currentBeoNumber && eventPages.has(currentBeoNumber)) {
+            const event = eventPages.get(currentBeoNumber);
             event.pages.push(pageNumber - 1);
             event.hasKitchenItems ||= hasKitchenItems(pageText);
             event.hasEventNotes ||= /EVENT\s+NOTES/i.test(pageText);
@@ -1219,7 +1230,9 @@
         if (removeKitchenFlexes) {
           const flexPages = pdfKitchenFlexPages.get(card) || new Set();
 
-          // Remove every page belonging to a flex-only Kitchen event.
+          // Remove the ENTIRE flex-only Kitchen event block. Because blank pages
+          // inherit the previous BEO # during scanning, duplex spacer pages for a
+          // removed event are included in flexPages and disappear with the event.
           pageIndices = pageIndices.filter((index) => !flexPages.has(index));
 
           // Discard the blank that was added when this upload was first normalized.
