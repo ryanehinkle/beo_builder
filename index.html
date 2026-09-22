@@ -1218,10 +1218,12 @@
 
         if (removeKitchenFlexes) {
           const flexPages = pdfKitchenFlexPages.get(card) || new Set();
+
+          // Remove the flex event pages entirely.
           pageIndices = pageIndices.filter((index) => !flexPages.has(index));
 
-          // The synthetic trailing blank belonged to the original page balance.
-          // Remove it first, then recalculate whether the remaining day's pages need one.
+          // Also remove the upload-time synthetic trailing blank. We'll rebalance
+          // the FINAL merged Kitchen PDF once, after every Kitchen file is combined.
           const syntheticBlankIndex = pdfSyntheticBlankIndex.get(card);
           if (Number.isInteger(syntheticBlankIndex)) {
             pageIndices = pageIndices.filter((index) => index !== syntheticBlankIndex);
@@ -1237,13 +1239,18 @@
 
         const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
         copiedPages.forEach((page) => merged.addPage(page));
+      }
 
-        // Printable mode keeps each uploaded Kitchen day on an even page count,
-        // even after one or more flex-only events were removed.
-        if (removeKitchenFlexes && !removeBlanks && pageIndices.length % 2 === 1) {
-          const lastKeptPage = sourcePdf.getPage(pageIndices[pageIndices.length - 1]);
-          merged.addPage([lastKeptPage.getWidth(), lastKeptPage.getHeight()]);
-        }
+      // For Printable Kitchen output with flexes removed, only balance once at the
+      // very end. This prevents removed flex events from being replaced by blanks.
+      if (
+        removeKitchenFlexes &&
+        !removeBlanks &&
+        merged.getPageCount() > 0 &&
+        merged.getPageCount() % 2 === 1
+      ) {
+        const lastPage = merged.getPage(merged.getPageCount() - 1);
+        merged.addPage([lastPage.getWidth(), lastPage.getHeight()]);
       }
 
       return await merged.save();
