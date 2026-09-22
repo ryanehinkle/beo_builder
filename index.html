@@ -1219,11 +1219,11 @@
         if (removeKitchenFlexes) {
           const flexPages = pdfKitchenFlexPages.get(card) || new Set();
 
-          // Remove the flex event pages entirely.
+          // Remove every page belonging to a flex-only Kitchen event.
           pageIndices = pageIndices.filter((index) => !flexPages.has(index));
 
-          // Also remove the upload-time synthetic trailing blank. We'll rebalance
-          // the FINAL merged Kitchen PDF once, after every Kitchen file is combined.
+          // Discard the blank that was added when this upload was first normalized.
+          // We recalculate this individual file's balance from scratch below.
           const syntheticBlankIndex = pdfSyntheticBlankIndex.get(card);
           if (Number.isInteger(syntheticBlankIndex)) {
             pageIndices = pageIndices.filter((index) => index !== syntheticBlankIndex);
@@ -1237,20 +1237,32 @@
 
         if (!pageIndices.length) continue;
 
-        const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
-        copiedPages.forEach((page) => merged.addPage(page));
-      }
+        // Build this uploaded PDF as its own adjusted document first.
+        // This guarantees each individual Kitchen file is balanced before merging.
+        const adjustedPdf = await PDFDocument.create();
+        const adjustedPages = await adjustedPdf.copyPages(sourcePdf, pageIndices);
+        adjustedPages.forEach((page) => adjustedPdf.addPage(page));
 
-      // For Printable Kitchen output with flexes removed, only balance once at the
-      // very end. This prevents removed flex events from being replaced by blanks.
-      if (
-        removeKitchenFlexes &&
-        !removeBlanks &&
-        merged.getPageCount() > 0 &&
-        merged.getPageCount() % 2 === 1
-      ) {
-        const lastPage = merged.getPage(merged.getPageCount() - 1);
-        merged.addPage([lastPage.getWidth(), lastPage.getHeight()]);
+        // Printable mode: after flex removal, normalize THIS individual file
+        // back to an even page count by adding one blank only at its end.
+        if (
+          removeKitchenFlexes &&
+          !removeBlanks &&
+          adjustedPdf.getPageCount() % 2 === 1
+        ) {
+          const lastPage = adjustedPdf.getPage(adjustedPdf.getPageCount() - 1);
+          adjustedPdf.addPage([lastPage.getWidth(), lastPage.getHeight()]);
+        }
+
+        const adjustedBytes = await adjustedPdf.save();
+        const adjustedForMerge = await PDFDocument.load(adjustedBytes);
+        const adjustedIndices = adjustedForMerge.getPageIndices();
+        const pagesForMerge = await merged.copyPages(
+          adjustedForMerge,
+          adjustedIndices
+        );
+
+        pagesForMerge.forEach((page) => merged.addPage(page));
       }
 
       return await merged.save();
