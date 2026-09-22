@@ -129,6 +129,36 @@
       gap: 10px;
     }
 
+    .logo-speed-control {
+      margin-top: 2px;
+      padding: 2px 3px 0;
+    }
+
+    .logo-speed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 7px;
+      color: #8f8f99;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+
+    .logo-speed-value {
+      color: #aebed0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .logo-speed-slider {
+      width: 100%;
+      height: 5px;
+      display: block;
+      margin: 0;
+      accent-color: #5185bd;
+      cursor: pointer;
+    }
+
     .landing .upload-button { width: 100%; }
 
     .help-button {
@@ -818,6 +848,23 @@
       <div class="landing-actions">
         <button class="upload-button upload-trigger" type="button">Upload BEOs</button>
         <button class="help-button help-trigger" type="button">How to use</button>
+
+        <div class="logo-speed-control">
+          <div class="logo-speed-header">
+            <span>Logo speed</span>
+            <span id="logoSpeedValue" class="logo-speed-value">1.0×</span>
+          </div>
+          <input
+            id="logoSpeedSlider"
+            class="logo-speed-slider"
+            type="range"
+            min="0.4"
+            max="3"
+            step="0.1"
+            value="1"
+            aria-label="Topgolf logo speed"
+          />
+        </div>
       </div>
     </section>
   </main>
@@ -1002,6 +1049,8 @@
     const landing = document.getElementById("landing");
     const floatingTopgolfLogo = document.getElementById("floatingTopgolfLogo");
     const landingCard = document.querySelector(".landing-card");
+    const logoSpeedSlider = document.getElementById("logoSpeedSlider");
+    const logoSpeedValue = document.getElementById("logoSpeedValue");
     const workspace = document.getElementById("workspace");
     const managerSection = document.getElementById("managerSection");
     const kitchenSection = document.getElementById("kitchenSection");
@@ -1049,10 +1098,13 @@
       let started = false;
       let mask = null;
       let lastHue = null;
+      let speedMultiplier = Number(logoSpeedSlider?.value || 1);
 
-      // Ignore very faint anti-aliased / stray pixels so the visible solid logo
-      // is what actually reaches the wall/card.
-      const alphaThreshold = 110;
+      // Use the solid visible portion of the white PNG for collision detection.
+      // The small inset intentionally lets the visible edge get truly flush
+      // with a wall/card instead of bouncing on barely-visible edge pixels.
+      const alphaThreshold = 200;
+      const touchInset = 2;
 
       function placeLogo() {
         floatingTopgolfLogo.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -1132,8 +1184,17 @@
       }
 
       function cardShape() {
-        const rect = landingCard.getBoundingClientRect();
-        const radius = parseFloat(getComputedStyle(landingCard).borderRadius) || 0;
+        const source = landingCard.getBoundingClientRect();
+        const rect = {
+          left: source.left + touchInset,
+          right: source.right - touchInset,
+          top: source.top + touchInset,
+          bottom: source.bottom - touchInset,
+          width: Math.max(0, source.width - touchInset * 2),
+          height: Math.max(0, source.height - touchInset * 2)
+        };
+        const sourceRadius = parseFloat(getComputedStyle(landingCard).borderRadius) || 0;
+        const radius = Math.max(0, sourceRadius - touchInset);
         return { rect, radius };
       }
 
@@ -1229,10 +1290,10 @@
       function clampToVisiblePixels() {
         if (!mask) return;
 
-        const minAllowedX = -mask.minX;
-        const maxAllowedX = window.innerWidth - (mask.maxX + 1);
-        const minAllowedY = -mask.minY;
-        const maxAllowedY = window.innerHeight - (mask.maxY + 1);
+        const minAllowedX = -mask.minX - touchInset;
+        const maxAllowedX = window.innerWidth - (mask.maxX + 1) + touchInset;
+        const minAllowedY = -mask.minY - touchInset;
+        const maxAllowedY = window.innerHeight - (mask.maxY + 1) + touchInset;
 
         x = Math.min(Math.max(x, minAllowedX), maxAllowedX);
         y = Math.min(Math.max(y, minAllowedY), maxAllowedY);
@@ -1273,10 +1334,10 @@
       function resolveWindowEdges(nextX, nextY) {
         if (!mask) return { x: nextX, y: nextY, collided: false };
 
-        const minAllowedX = -mask.minX;
-        const maxAllowedX = window.innerWidth - (mask.maxX + 1);
-        const minAllowedY = -mask.minY;
-        const maxAllowedY = window.innerHeight - (mask.maxY + 1);
+        const minAllowedX = -mask.minX - touchInset;
+        const maxAllowedX = window.innerWidth - (mask.maxX + 1) + touchInset;
+        const minAllowedY = -mask.minY - touchInset;
+        const maxAllowedY = window.innerHeight - (mask.maxY + 1) + touchInset;
 
         let collided = false;
 
@@ -1342,8 +1403,8 @@
         const oldX = x;
         const oldY = y;
 
-        let nextX = x + vx * dt;
-        let nextY = y + vy * dt;
+        let nextX = x + vx * speedMultiplier * dt;
+        let nextY = y + vy * speedMultiplier * dt;
         let collided = false;
 
         const edgeResult = resolveWindowEdges(nextX, nextY);
@@ -1374,6 +1435,13 @@
         lastTime = performance.now();
         started = true;
       }
+
+      logoSpeedSlider?.addEventListener("input", () => {
+        speedMultiplier = Number(logoSpeedSlider.value || 1);
+        if (logoSpeedValue) {
+          logoSpeedValue.textContent = speedMultiplier.toFixed(1) + "×";
+        }
+      });
 
       if (floatingTopgolfLogo.complete && floatingTopgolfLogo.naturalWidth) {
         initialize();
