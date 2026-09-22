@@ -68,7 +68,51 @@
       transition: background .16s ease, transform .16s ease, box-shadow .16s ease;
     }
 
+    .landing-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
     .landing .upload-button { width: 100%; }
+
+    .help-button {
+      border: 1px solid #44444b;
+      border-radius: 11px;
+      padding: 13px 20px;
+      background: #2a2a2f;
+      color: #d7d7dd;
+      font: inherit;
+      font-size: .96rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    .landing .help-button { width: 100%; }
+
+    .help-button:hover {
+      background: #34343a;
+      border-color: #52525a;
+      transform: translateY(-1px);
+    }
+
+    .help-button:active {
+      transform: translateY(0);
+      background: #252529;
+    }
+
+    .workspace-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .workspace .help-button {
+      flex: 0 0 auto;
+      padding: 12px 16px;
+      font-size: .9rem;
+    }
 
     .upload-button:hover {
       background: #5e93cc;
@@ -374,6 +418,137 @@
       cursor: default;
     }
 
+    .help-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 26px;
+      background: rgba(4, 4, 6, .62);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .help-modal.open {
+      display: flex;
+    }
+
+    .help-window {
+      width: min(92vw, 760px);
+      max-height: min(88vh, 900px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #3b3b43;
+      border-radius: 14px;
+      background: #18181c;
+      box-shadow: 0 30px 90px rgba(0,0,0,.62);
+    }
+
+    .help-header {
+      position: relative;
+      padding: 22px 56px 18px 24px;
+      border-bottom: 1px solid #303036;
+    }
+
+    .help-header h2 {
+      color: #fff;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .help-header p {
+      margin-top: 6px;
+      color: #92929c;
+      font-size: .9rem;
+      line-height: 1.45;
+    }
+
+    .help-close {
+      position: absolute;
+      top: 15px;
+      right: 16px;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #a8a8b0;
+      font: inherit;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease;
+    }
+
+    .help-close:hover {
+      background: #29292f;
+      color: #fff;
+    }
+
+    .help-content {
+      overflow-y: auto;
+      padding: 22px 24px 28px;
+    }
+
+    .help-step + .help-step {
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid #2b2b31;
+    }
+
+    .help-step-number {
+      margin-bottom: 7px;
+      color: #6fa0d6;
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .help-step h3 {
+      color: #f3f3f5;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .help-step p {
+      margin-top: 8px;
+      color: #b1b1ba;
+      font-size: .91rem;
+      line-height: 1.55;
+    }
+
+    .help-screenshot-placeholder {
+      min-height: 210px;
+      display: grid;
+      place-items: center;
+      margin-top: 15px;
+      padding: 20px;
+      border: 1px dashed #505058;
+      border-radius: 10px;
+      background: #111114;
+      color: #686872;
+      font-size: .82rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .help-note {
+      margin-top: 24px;
+      padding: 13px 15px;
+      border: 1px solid #34343b;
+      border-radius: 10px;
+      background: #202024;
+      color: #a9a9b2;
+      font-size: .85rem;
+      line-height: 1.5;
+    }
+
     .pdf-modal {
       position: fixed;
       inset: 0;
@@ -540,7 +715,14 @@
         margin-bottom: 28px;
       }
 
-      .workspace .upload-button { width: 100%; }
+      .workspace-actions {
+        width: 100%;
+      }
+
+      .workspace .upload-button,
+      .workspace .help-button {
+        flex: 1 1 0;
+      }
 
       .pdf-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -563,7 +745,10 @@
   <main id="landing" class="landing">
     <section class="landing-card">
       <h1>BEO Builder</h1>
-      <button class="upload-button upload-trigger" type="button">Upload BEOs</button>
+      <div class="landing-actions">
+        <button class="upload-button upload-trigger" type="button">Upload BEOs</button>
+        <button class="help-button help-trigger" type="button">How to use</button>
+      </div>
     </section>
   </main>
 
@@ -573,7 +758,10 @@
         <h1>BEO Builder</h1>
         <p class="subtitle">Uploaded BEO PDFs</p>
       </div>
-      <button class="upload-button upload-trigger" type="button">Add BEOs</button>
+      <div class="workspace-actions">
+        <button class="help-button help-trigger" type="button">How to use</button>
+        <button class="upload-button upload-trigger" type="button">Add BEOs</button>
+      </div>
     </header>
 
     <section id="managerSection" class="beo-section">
@@ -606,6 +794,86 @@
       <button id="mergeButton" class="merge-button" type="button" disabled>Merge</button>
     </div>
   </main>
+
+  <div id="helpModal" class="help-modal" aria-hidden="true">
+    <section class="help-window" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <header class="help-header">
+        <h2 id="helpTitle">How to use BEO Builder</h2>
+        <p>Turn your daily Manager and Kitchen BEO exports into organized, printable weekly PDFs.</p>
+        <button id="helpClose" class="help-close" type="button" aria-label="Close instructions">×</button>
+      </header>
+
+      <div class="help-content">
+        <section class="help-step">
+          <div class="help-step-number">Step 1</div>
+          <h3>Batch merge each day like normal</h3>
+          <p>
+            Start with the daily BEO PDFs you already create. Once each day has been batch merged,
+            you are ready to use BEO Builder. You do not need to rename files, put them in date
+            order, or organize Manager and Kitchen PDFs yourself.
+          </p>
+          <!-- SCREENSHOT PLACEHOLDER 1:
+               Replace the div below with:
+               <img src="images/step-1.png" alt="Daily batch merged BEO files" class="help-screenshot">
+          -->
+          <div class="help-screenshot-placeholder">Screenshot placeholder — daily batch merged files</div>
+        </section>
+
+        <section class="help-step">
+          <div class="help-step-number">Step 2</div>
+          <h3>Upload all of the PDFs together</h3>
+          <p>
+            Click <strong>Upload BEOs</strong> and select all of the daily PDFs you want to combine.
+            No renaming or manual organization is needed. BEO Builder reads the files and separates
+            them into Manager BEOs and Kitchen BEOs automatically.
+          </p>
+          <!-- SCREENSHOT PLACEHOLDER 2 -->
+          <div class="help-screenshot-placeholder">Screenshot placeholder — selecting multiple PDFs</div>
+        </section>
+
+        <section class="help-step">
+          <div class="help-step-number">Step 3</div>
+          <h3>Everything is organized automatically</h3>
+          <p>
+            BEO Builder sorts the individual events by <strong>event date</strong> and then
+            <strong>event start time</strong>. In Printable mode, each individual event is kept on
+            an even number of pages so the next BEO starts correctly when the final file is printed
+            double-sided.
+          </p>
+          <!-- SCREENSHOT PLACEHOLDER 3 -->
+          <div class="help-screenshot-placeholder">Screenshot placeholder — organized Manager / Kitchen tiles</div>
+        </section>
+
+        <section class="help-step">
+          <div class="help-step-number">Step 4</div>
+          <h3>Choose your merge options</h3>
+          <p>
+            <strong>Printable</strong> preserves the duplex-printing layout. <strong>Remove blank
+            pages</strong> creates a compact version without blank pages. For Kitchen BEOs, you can
+            also automatically remove flex events that contain no Kitchen items.
+          </p>
+          <!-- SCREENSHOT PLACEHOLDER 4 -->
+          <div class="help-screenshot-placeholder">Screenshot placeholder — merge options</div>
+        </section>
+
+        <section class="help-step">
+          <div class="help-step-number">Step 5</div>
+          <h3>Merge and download</h3>
+          <p>
+            Click <strong>Merge</strong>. The finished Manager and Kitchen PDFs are generated and
+            downloaded automatically, already ordered and named with their covered date range.
+          </p>
+          <!-- SCREENSHOT PLACEHOLDER 5 -->
+          <div class="help-screenshot-placeholder">Screenshot placeholder — final Merge button and downloads</div>
+        </section>
+
+        <div class="help-note">
+          The screenshot areas are intentionally placeholders for now. Each one has an HTML comment
+          directly above it so you can easily swap in your own image later.
+        </div>
+      </div>
+    </section>
+  </div>
 
   <div id="pdfModal" class="pdf-modal" aria-hidden="true">
     <section class="modal-window" role="dialog" aria-modal="true" aria-label="PDF preview">
@@ -652,6 +920,9 @@
     const modalCanvasWrap = document.getElementById("modalCanvasWrap");
     const mergeButton = document.getElementById("mergeButton");
     const removeKitchenFlexes = document.getElementById("removeKitchenFlexes");
+    const helpTriggers = document.querySelectorAll(".help-trigger");
+    const helpModal = document.getElementById("helpModal");
+    const helpClose = document.getElementById("helpClose");
 
     const pdfDocuments = new WeakMap();
     const pdfSourceBytes = new WeakMap();
@@ -667,6 +938,28 @@
     let modalRenderTask = null;
     let previewFrameWidth = 0;
     let previewFrameHeight = 0;
+
+    function openHelpModal() {
+      helpModal.classList.add("open");
+      helpModal.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeHelpModal() {
+      helpModal.classList.remove("open");
+      helpModal.setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+    }
+
+    helpTriggers.forEach((button) => {
+      button.addEventListener("click", openHelpModal);
+    });
+
+    helpClose.addEventListener("click", closeHelpModal);
+
+    helpModal.addEventListener("click", (event) => {
+      if (event.target === helpModal) closeHelpModal();
+    });
 
     uploadTriggers.forEach((button) => {
       button.addEventListener("click", () => pdfInput.click());
@@ -1097,6 +1390,11 @@
     });
 
     document.addEventListener("keydown", (event) => {
+      if (helpModal.classList.contains("open")) {
+        if (event.key === "Escape") closeHelpModal();
+        return;
+      }
+
       if (!pdfModal.classList.contains("open")) return;
 
       if (event.key === "Escape") {
