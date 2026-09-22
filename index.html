@@ -47,7 +47,7 @@
       pointer-events: none;
       user-select: none;
       will-change: transform;
-      filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .32));
+      filter: url(#topgolfLogoColor) drop-shadow(0 8px 18px rgba(0, 0, 0, .32));
     }
 
     .landing-card {
@@ -791,6 +791,15 @@
 </head>
 
 <body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute;pointer-events:none">
+    <defs>
+      <filter id="topgolfLogoColor" color-interpolation-filters="sRGB">
+        <feFlood id="topgolfLogoFlood" flood-color="#ffffff" result="logoColor" />
+        <feComposite in="logoColor" in2="SourceAlpha" operator="in" />
+      </filter>
+    </defs>
+  </svg>
+
   <input id="pdfInput" type="file" accept="application/pdf,.pdf" multiple />
 
   <main id="landing" class="landing">
@@ -1030,6 +1039,8 @@
     function startFloatingTopgolfLogo() {
       if (!floatingTopgolfLogo || !landingCard) return;
 
+      const logoColorFlood = document.getElementById("topgolfLogoFlood");
+
       let x = 0;
       let y = 0;
       let vx = 105;
@@ -1037,11 +1048,39 @@
       let lastTime = performance.now();
       let started = false;
       let mask = null;
+      let lastHue = null;
 
-      const alphaThreshold = 18;
+      // Ignore very faint anti-aliased / stray pixels so the visible solid logo
+      // is what actually reaches the wall/card.
+      const alphaThreshold = 110;
 
       function placeLogo() {
         floatingTopgolfLogo.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+
+      function randomizeLogoColor() {
+        if (!logoColorFlood) return;
+
+        let hue = Math.floor(Math.random() * 360);
+
+        if (lastHue !== null) {
+          let attempts = 0;
+          while (
+            Math.min(Math.abs(hue - lastHue), 360 - Math.abs(hue - lastHue)) < 45 &&
+            attempts < 20
+          ) {
+            hue = Math.floor(Math.random() * 360);
+            attempts++;
+          }
+        }
+
+        lastHue = hue;
+        const saturation = 82 + Math.floor(Math.random() * 17);
+        const lightness = 54 + Math.floor(Math.random() * 12);
+        logoColorFlood.setAttribute(
+          "flood-color",
+          `hsl(${hue} ${saturation}% ${lightness}%)`
+        );
       }
 
       function rebuildPixelMask() {
@@ -1071,7 +1110,7 @@
         for (let py = 0; py < height; py++) {
           for (let px = 0; px < width; px++) {
             const a = pixels[(py * width + px) * 4 + 3];
-            if (a <= alphaThreshold) continue;
+            if (a < alphaThreshold) continue;
 
             alpha[py * width + px] = 1;
             if (px < minX) minX = px;
@@ -1081,7 +1120,6 @@
           }
         }
 
-        // Fallback if the image has no detectable alpha for some reason.
         if (maxX < minX || maxY < minY) {
           minX = 0;
           minY = 0;
@@ -1164,6 +1202,30 @@
         return false;
       }
 
+      function findLastSafePosition(fromX, fromY, toX, toY) {
+        let low = 0;
+        let high = 1;
+
+        // Binary-search the motion path so the logo stops essentially flush
+        // with the card instead of jumping back an entire animation frame.
+        for (let i = 0; i < 18; i++) {
+          const mid = (low + high) / 2;
+          const testX = fromX + (toX - fromX) * mid;
+          const testY = fromY + (toY - fromY) * mid;
+
+          if (pixelMaskHitsCard(testX, testY)) {
+            high = mid;
+          } else {
+            low = mid;
+          }
+        }
+
+        return {
+          x: fromX + (toX - fromX) * low,
+          y: fromY + (toY - fromY) * low
+        };
+      }
+
       function clampToVisiblePixels() {
         if (!mask) return;
 
@@ -1209,54 +1271,61 @@
       }
 
       function resolveWindowEdges(nextX, nextY) {
-        if (!mask) return { x: nextX, y: nextY };
+        if (!mask) return { x: nextX, y: nextY, collided: false };
 
         const minAllowedX = -mask.minX;
         const maxAllowedX = window.innerWidth - (mask.maxX + 1);
         const minAllowedY = -mask.minY;
         const maxAllowedY = window.innerHeight - (mask.maxY + 1);
 
+        let collided = false;
+
         if (nextX <= minAllowedX) {
           nextX = minAllowedX;
           vx = Math.abs(vx);
+          collided = true;
         } else if (nextX >= maxAllowedX) {
           nextX = maxAllowedX;
           vx = -Math.abs(vx);
+          collided = true;
         }
 
         if (nextY <= minAllowedY) {
           nextY = minAllowedY;
           vy = Math.abs(vy);
+          collided = true;
         } else if (nextY >= maxAllowedY) {
           nextY = maxAllowedY;
           vy = -Math.abs(vy);
+          collided = true;
         }
 
-        return { x: nextX, y: nextY };
+        return { x: nextX, y: nextY, collided };
       }
 
       function resolveCardCollision(oldX, oldY, nextX, nextY) {
         if (!pixelMaskHitsCard(nextX, nextY)) {
-          return { x: nextX, y: nextY };
+          return { x: nextX, y: nextY, collided: false };
         }
 
         const hitsFromX = pixelMaskHitsCard(nextX, oldY);
         const hitsFromY = pixelMaskHitsCard(oldX, nextY);
 
+        let contact;
+
         if (hitsFromX && !hitsFromY) {
+          contact = findLastSafePosition(oldX, nextY, nextX, nextY);
           vx = -vx;
-          return { x: oldX, y: nextY };
-        }
-
-        if (!hitsFromX && hitsFromY) {
+        } else if (!hitsFromX && hitsFromY) {
+          contact = findLastSafePosition(nextX, oldY, nextX, nextY);
           vy = -vy;
-          return { x: nextX, y: oldY };
+        } else {
+          contact = findLastSafePosition(oldX, oldY, nextX, nextY);
+          vx = -vx;
+          vy = -vy;
         }
 
-        // Corner impact: bounce both axes so the logo clears the card cleanly.
-        vx = -vx;
-        vy = -vy;
-        return { x: oldX, y: oldY };
+        return { x: contact.x, y: contact.y, collided: true };
       }
 
       function animate(now) {
@@ -1275,12 +1344,24 @@
 
         let nextX = x + vx * dt;
         let nextY = y + vy * dt;
+        let collided = false;
 
-        ({ x: nextX, y: nextY } = resolveWindowEdges(nextX, nextY));
-        ({ x: nextX, y: nextY } = resolveCardCollision(oldX, oldY, nextX, nextY));
+        const edgeResult = resolveWindowEdges(nextX, nextY);
+        nextX = edgeResult.x;
+        nextY = edgeResult.y;
+        collided = collided || edgeResult.collided;
+
+        const cardResult = resolveCardCollision(oldX, oldY, nextX, nextY);
+        nextX = cardResult.x;
+        nextY = cardResult.y;
+        collided = collided || cardResult.collided;
 
         x = nextX;
         y = nextY;
+
+        if (collided) {
+          randomizeLogoColor();
+        }
 
         placeLogo();
         requestAnimationFrame(animate);
@@ -1305,8 +1386,6 @@
 
         clampToVisiblePixels();
 
-        // If a resize put the actual logo pixels inside the card, find a clean
-        // random position instead of letting the transparent image box decide.
         if (pixelMaskHitsCard(x, y)) {
           randomizeStart();
         } else {
