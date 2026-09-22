@@ -840,7 +840,7 @@
             type="range"
             min="0.4"
             max="5"
-            step="0.1"
+            step="any"
             value="1"
             aria-label="Topgolf logo speed"
           />
@@ -1416,7 +1416,7 @@
       }
 
       logoSpeedSlider?.addEventListener("input", () => {
-        speedMultiplier = Number(logoSpeedSlider.value || 1);
+        speedMultiplier = Math.round(Number(logoSpeedSlider.value || 1) * 100) / 100;
       });
 
       if (floatingTopgolfLogo.complete && floatingTopgolfLogo.naturalWidth) {
