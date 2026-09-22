@@ -97,6 +97,17 @@
       min-width: 0;
     }
 
+    .workspace-brand[role="button"] {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .workspace-brand[role="button"]:focus-visible {
+      outline: 2px solid rgba(103,162,226,.55);
+      outline-offset: 6px;
+      border-radius: 8px;
+    }
+
     .workspace-brand-logo {
       width: 46px;
       height: 46px;
@@ -852,7 +863,14 @@
   <main id="workspace" class="workspace">
     <header class="workspace-header">
       <div class="workspace-title">
-        <div class="workspace-brand">
+        <div
+          id="workspaceHomeLink"
+          class="workspace-brand"
+          role="button"
+          tabindex="0"
+          aria-label="Return to BEO Builder home"
+          title="Return to home"
+        >
           <img src="assets/beo-logo.png?v=3" alt="" class="workspace-brand-logo" />
           <div class="workspace-brand-copy">
             <h1>BEO Builder</h1>
@@ -1031,6 +1049,7 @@
     const landingCard = document.querySelector(".landing-card");
     const logoSpeedSlider = document.getElementById("logoSpeedSlider");
     const workspace = document.getElementById("workspace");
+    const workspaceHomeLink = document.getElementById("workspaceHomeLink");
     const managerSection = document.getElementById("managerSection");
     const kitchenSection = document.getElementById("kitchenSection");
     const managerGrid = document.getElementById("managerGrid");
@@ -1441,6 +1460,18 @@
     }
 
     startFloatingTopgolfLogo();
+
+    function returnToHome() {
+      window.location.reload();
+    }
+
+    workspaceHomeLink?.addEventListener("click", returnToHome);
+    workspaceHomeLink?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        returnToHome();
+      }
+    });
 
     function openHelpModal() {
       helpModal.classList.add("open");
