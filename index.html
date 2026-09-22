@@ -329,6 +329,26 @@
       outline-offset: 2px;
     }
 
+    .checkbox-option {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 3px;
+      color: #b5b5be;
+      font-size: .84rem;
+      font-weight: 650;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-option input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #5185bd;
+      cursor: pointer;
+    }
+
     .merge-button {
       min-width: 210px;
       border: 1px solid #63a97a;
@@ -576,6 +596,11 @@
           <input id="noBlanksMode" type="radio" name="mergeMode" value="no-blanks" />
           <label for="noBlanksMode">Remove blank pages</label>
         </div>
+
+        <label class="checkbox-option" for="removeKitchenFlexes">
+          <input id="removeKitchenFlexes" type="checkbox" checked />
+          <span>Remove flexes from Kitchen BEOs</span>
+        </label>
       </div>
 
       <button id="mergeButton" class="merge-button" type="button" disabled>Merge</button>
@@ -626,10 +651,13 @@
     const modalCanvas = document.getElementById("modalCanvas");
     const modalCanvasWrap = document.getElementById("modalCanvasWrap");
     const mergeButton = document.getElementById("mergeButton");
+    const removeKitchenFlexes = document.getElementById("removeKitchenFlexes");
 
     const pdfDocuments = new WeakMap();
     const pdfSourceBytes = new WeakMap();
     const pdfBlankPages = new WeakMap();
+    const pdfKitchenFlexPages = new WeakMap();
+    const pdfSyntheticBlankIndex = new WeakMap();
 
     let uploadOrder = 0;
     let pendingFiles = 0;
@@ -725,10 +753,15 @@
 
       try {
         const originalBytes = new Uint8Array(await file.arrayBuffer());
-        const normalizedBytes = await ensureEvenPageCount(originalBytes);
+        const normalized = await ensureEvenPageCount(originalBytes);
+        const normalizedBytes = normalized.bytes;
 
         // Keep a separate copy for merging because PDF.js may transfer/detach its input buffer.
         pdfSourceBytes.set(card, normalizedBytes.slice());
+        pdfSyntheticBlankIndex.set(
+          card,
+          normalized.addedBlank ? normalized.originalPageCount : null
+        );
 
         const pdf = await pdfjsLib.getDocument({ data: normalizedBytes.slice() }).promise;
         pdfDocuments.set(card, pdf);
@@ -736,6 +769,7 @@
         let firstPageText = "";
         const beoNumbers = new Set();
         const blankPages = new Set();
+        const eventPages = new Map();
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
           const page = await pdf.getPage(pageNumber);
@@ -753,8 +787,25 @@
 
           if (pageNumber === 1) firstPageText = pageText;
 
-          for (const match of pageText.matchAll(/BEO\s*#\s*(\d+)/gi)) {
-            beoNumbers.add(match[1]);
+          const beoMatch = pageText.match(/BEO\s*#\s*(\d+)/i);
+          if (beoMatch) {
+            const beoNumber = beoMatch[1];
+            beoNumbers.add(beoNumber);
+
+            if (!eventPages.has(beoNumber)) {
+              eventPages.set(beoNumber, {
+                pages: [],
+                hasKitchenItems: false,
+                hasEventNotes: false,
+                hasEventHeader: false
+              });
+            }
+
+            const event = eventPages.get(beoNumber);
+            event.pages.push(pageNumber - 1);
+            event.hasKitchenItems ||= hasKitchenItems(pageText);
+            event.hasEventNotes ||= /EVENT\s+NOTES/i.test(pageText);
+            event.hasEventHeader ||= /Event\s*Date:/i.test(pageText);
           }
 
           const progress = Math.max(8, Math.round((pageNumber / pdf.numPages) * 100));
@@ -765,6 +816,22 @@
         pdfBlankPages.set(card, blankPages);
 
         const beoType = detectBeoType(firstPageText);
+        const kitchenFlexPages = new Set();
+
+        if (beoType === "kitchen") {
+          for (const event of eventPages.values()) {
+            const isEmptyKitchenEvent =
+              event.hasEventHeader &&
+              event.hasEventNotes &&
+              !event.hasKitchenItems;
+
+            if (isEmptyKitchenEvent) {
+              event.pages.forEach((pageIndex) => kitchenFlexPages.add(pageIndex));
+            }
+          }
+        }
+
+        pdfKitchenFlexPages.set(card, kitchenFlexPages);
 
         if (beoType === "kitchen") {
           kitchenSection.classList.add("visible");
@@ -1008,6 +1075,15 @@
       }
     });
 
+    function hasKitchenItems(text) {
+      return (
+        /\bPRODUCT\s+NAME\b/i.test(text) ||
+        /\bITEM\s+NAME\b/i.test(text) ||
+        /\bEvent\s+Food\b/i.test(text) ||
+        /\bFood\s+TOTAL\b/i.test(text)
+      );
+    }
+
     async function isBlankPage(page, textContent) {
       const hasText = textContent.items.some(
         (item) => typeof item.str === "string" && item.str.trim().length > 0
@@ -1050,14 +1126,24 @@
 
     async function ensureEvenPageCount(bytes) {
       const pdf = await PDFDocument.load(bytes);
+      const originalPageCount = pdf.getPageCount();
 
-      if (pdf.getPageCount() % 2 === 1) {
-        const lastPage = pdf.getPage(pdf.getPageCount() - 1);
+      if (originalPageCount % 2 === 1) {
+        const lastPage = pdf.getPage(originalPageCount - 1);
         pdf.addPage([lastPage.getWidth(), lastPage.getHeight()]);
-        return new Uint8Array(await pdf.save());
+
+        return {
+          bytes: new Uint8Array(await pdf.save()),
+          addedBlank: true,
+          originalPageCount
+        };
       }
 
-      return bytes;
+      return {
+        bytes,
+        addedBlank: false,
+        originalPageCount
+      };
     }
 
     function updateMergeButton() {
@@ -1077,9 +1163,13 @@
         const kitchenCards = getSortedCards(kitchenGrid);
         const removeBlanks =
           document.querySelector('input[name="mergeMode"]:checked')?.value === "no-blanks";
+        const removeFlexes = removeKitchenFlexes.checked;
 
         if (managerCards.length) {
-          const bytes = await mergeCards(managerCards, removeBlanks);
+          const bytes = await mergeCards(managerCards, {
+            removeBlanks,
+            removeKitchenFlexes: false
+          });
           downloadMergedPdf(
             bytes,
             buildMergedFilename("Managers", managerCards, removeBlanks)
@@ -1087,7 +1177,10 @@
         }
 
         if (kitchenCards.length) {
-          const bytes = await mergeCards(kitchenCards, removeBlanks);
+          const bytes = await mergeCards(kitchenCards, {
+            removeBlanks,
+            removeKitchenFlexes: removeFlexes
+          });
           downloadMergedPdf(
             bytes,
             buildMergedFilename("Kitchens", kitchenCards, removeBlanks)
@@ -1110,7 +1203,10 @@
       });
     }
 
-    async function mergeCards(cards, removeBlanks = false) {
+    async function mergeCards(
+      cards,
+      { removeBlanks = false, removeKitchenFlexes = false } = {}
+    ) {
       const merged = await PDFDocument.create();
 
       for (const card of cards) {
@@ -1119,6 +1215,18 @@
 
         const sourcePdf = await PDFDocument.load(sourceBytes);
         let pageIndices = sourcePdf.getPageIndices();
+
+        if (removeKitchenFlexes) {
+          const flexPages = pdfKitchenFlexPages.get(card) || new Set();
+          pageIndices = pageIndices.filter((index) => !flexPages.has(index));
+
+          // The synthetic trailing blank belonged to the original page balance.
+          // Remove it first, then recalculate whether the remaining day's pages need one.
+          const syntheticBlankIndex = pdfSyntheticBlankIndex.get(card);
+          if (Number.isInteger(syntheticBlankIndex)) {
+            pageIndices = pageIndices.filter((index) => index !== syntheticBlankIndex);
+          }
+        }
 
         if (removeBlanks) {
           const blankPages = pdfBlankPages.get(card) || new Set();
@@ -1129,6 +1237,13 @@
 
         const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
         copiedPages.forEach((page) => merged.addPage(page));
+
+        // Printable mode keeps each uploaded Kitchen day on an even page count,
+        // even after one or more flex-only events were removed.
+        if (removeKitchenFlexes && !removeBlanks && pageIndices.length % 2 === 1) {
+          const lastKeptPage = sourcePdf.getPage(pageIndices[pageIndices.length - 1]);
+          merged.addPage([lastKeptPage.getWidth(), lastKeptPage.getHeight()]);
+        }
       }
 
       return await merged.save();
