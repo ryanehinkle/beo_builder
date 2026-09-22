@@ -1030,144 +1030,290 @@
     function startFloatingTopgolfLogo() {
       if (!floatingTopgolfLogo || !landingCard) return;
 
-      let x = 28;
-      let y = 28;
+      let x = 0;
+      let y = 0;
       let vx = 105;
       let vy = 82;
       let lastTime = performance.now();
-      const cardGap = 8;
+      let started = false;
+      let mask = null;
+
+      const alphaThreshold = 18;
 
       function placeLogo() {
         floatingTopgolfLogo.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       }
 
-      function keepOutsideCard(width, height, card) {
-        const left = x;
-        const right = x + width;
-        const top = y;
-        const bottom = y + height;
+      function rebuildPixelMask() {
+        const width = Math.max(1, Math.round(floatingTopgolfLogo.offsetWidth));
+        const height = Math.max(1, Math.round(floatingTopgolfLogo.offsetHeight));
 
-        const overlapX = right > card.left - cardGap && left < card.right + cardGap;
-        const overlapY = bottom > card.top - cardGap && top < card.bottom + cardGap;
+        if (!floatingTopgolfLogo.naturalWidth || !floatingTopgolfLogo.naturalHeight) return false;
 
-        if (!overlapX || !overlapY) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
 
-        const pushLeft = Math.abs(right - (card.left - cardGap));
-        const pushRight = Math.abs((card.right + cardGap) - left);
-        const pushUp = Math.abs(bottom - (card.top - cardGap));
-        const pushDown = Math.abs((card.bottom + cardGap) - top);
-        const smallest = Math.min(pushLeft, pushRight, pushUp, pushDown);
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return false;
 
-        if (smallest === pushLeft) {
-          x = card.left - cardGap - width;
-          vx = -Math.abs(vx);
-        } else if (smallest === pushRight) {
-          x = card.right + cardGap;
-          vx = Math.abs(vx);
-        } else if (smallest === pushUp) {
-          y = card.top - cardGap - height;
-          vy = -Math.abs(vy);
-        } else {
-          y = card.bottom + cardGap;
-          vy = Math.abs(vy);
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(floatingTopgolfLogo, 0, 0, width, height);
+
+        const pixels = ctx.getImageData(0, 0, width, height).data;
+        const alpha = new Uint8Array(width * height);
+
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let py = 0; py < height; py++) {
+          for (let px = 0; px < width; px++) {
+            const a = pixels[(py * width + px) * 4 + 3];
+            if (a <= alphaThreshold) continue;
+
+            alpha[py * width + px] = 1;
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+          }
         }
+
+        // Fallback if the image has no detectable alpha for some reason.
+        if (maxX < minX || maxY < minY) {
+          minX = 0;
+          minY = 0;
+          maxX = width - 1;
+          maxY = height - 1;
+        }
+
+        mask = { width, height, alpha, minX, minY, maxX, maxY };
+        return true;
+      }
+
+      function cardShape() {
+        const rect = landingCard.getBoundingClientRect();
+        const radius = parseFloat(getComputedStyle(landingCard).borderRadius) || 0;
+        return { rect, radius };
+      }
+
+      function pointInsideRoundedRect(px, py, rect, radius) {
+        if (px < rect.left || px > rect.right || py < rect.top || py > rect.bottom) {
+          return false;
+        }
+
+        const r = Math.min(radius, rect.width / 2, rect.height / 2);
+        if (r <= 0) return true;
+
+        const innerLeft = rect.left + r;
+        const innerRight = rect.right - r;
+        const innerTop = rect.top + r;
+        const innerBottom = rect.bottom - r;
+
+        if (px >= innerLeft && px <= innerRight) return true;
+        if (py >= innerTop && py <= innerBottom) return true;
+
+        const cx = px < innerLeft ? innerLeft : innerRight;
+        const cy = py < innerTop ? innerTop : innerBottom;
+        const dx = px - cx;
+        const dy = py - cy;
+
+        return dx * dx + dy * dy <= r * r;
+      }
+
+      function pixelMaskHitsCard(testX, testY) {
+        if (!mask) return false;
+
+        const { rect, radius } = cardShape();
+
+        const logoLeft = testX + mask.minX;
+        const logoRight = testX + mask.maxX + 1;
+        const logoTop = testY + mask.minY;
+        const logoBottom = testY + mask.maxY + 1;
+
+        if (
+          logoRight <= rect.left ||
+          logoLeft >= rect.right ||
+          logoBottom <= rect.top ||
+          logoTop >= rect.bottom
+        ) {
+          return false;
+        }
+
+        const startX = Math.max(mask.minX, Math.floor(rect.left - testX) - 1);
+        const endX = Math.min(mask.maxX, Math.ceil(rect.right - testX) + 1);
+        const startY = Math.max(mask.minY, Math.floor(rect.top - testY) - 1);
+        const endY = Math.min(mask.maxY, Math.ceil(rect.bottom - testY) + 1);
+
+        for (let py = startY; py <= endY; py++) {
+          const row = py * mask.width;
+          const screenY = testY + py + 0.5;
+
+          for (let px = startX; px <= endX; px++) {
+            if (!mask.alpha[row + px]) continue;
+
+            const screenX = testX + px + 0.5;
+            if (pointInsideRoundedRect(screenX, screenY, rect, radius)) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      }
+
+      function clampToVisiblePixels() {
+        if (!mask) return;
+
+        const minAllowedX = -mask.minX;
+        const maxAllowedX = window.innerWidth - (mask.maxX + 1);
+        const minAllowedY = -mask.minY;
+        const maxAllowedY = window.innerHeight - (mask.maxY + 1);
+
+        x = Math.min(Math.max(x, minAllowedX), maxAllowedX);
+        y = Math.min(Math.max(y, minAllowedY), maxAllowedY);
+      }
+
+      function randomizeStart() {
+        if (!mask) return;
+
+        const minAllowedX = -mask.minX;
+        const maxAllowedX = Math.max(minAllowedX, window.innerWidth - (mask.maxX + 1));
+        const minAllowedY = -mask.minY;
+        const maxAllowedY = Math.max(minAllowedY, window.innerHeight - (mask.maxY + 1));
+
+        let found = false;
+
+        for (let attempt = 0; attempt < 200; attempt++) {
+          const testX = minAllowedX + Math.random() * (maxAllowedX - minAllowedX);
+          const testY = minAllowedY + Math.random() * (maxAllowedY - minAllowedY);
+
+          if (!pixelMaskHitsCard(testX, testY)) {
+            x = testX;
+            y = testY;
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          x = minAllowedX;
+          y = minAllowedY;
+        }
+
+        vx = Math.abs(vx) * (Math.random() < 0.5 ? -1 : 1);
+        vy = Math.abs(vy) * (Math.random() < 0.5 ? -1 : 1);
+        placeLogo();
+      }
+
+      function resolveWindowEdges(nextX, nextY) {
+        if (!mask) return { x: nextX, y: nextY };
+
+        const minAllowedX = -mask.minX;
+        const maxAllowedX = window.innerWidth - (mask.maxX + 1);
+        const minAllowedY = -mask.minY;
+        const maxAllowedY = window.innerHeight - (mask.maxY + 1);
+
+        if (nextX <= minAllowedX) {
+          nextX = minAllowedX;
+          vx = Math.abs(vx);
+        } else if (nextX >= maxAllowedX) {
+          nextX = maxAllowedX;
+          vx = -Math.abs(vx);
+        }
+
+        if (nextY <= minAllowedY) {
+          nextY = minAllowedY;
+          vy = Math.abs(vy);
+        } else if (nextY >= maxAllowedY) {
+          nextY = maxAllowedY;
+          vy = -Math.abs(vy);
+        }
+
+        return { x: nextX, y: nextY };
+      }
+
+      function resolveCardCollision(oldX, oldY, nextX, nextY) {
+        if (!pixelMaskHitsCard(nextX, nextY)) {
+          return { x: nextX, y: nextY };
+        }
+
+        const hitsFromX = pixelMaskHitsCard(nextX, oldY);
+        const hitsFromY = pixelMaskHitsCard(oldX, nextY);
+
+        if (hitsFromX && !hitsFromY) {
+          vx = -vx;
+          return { x: oldX, y: nextY };
+        }
+
+        if (!hitsFromX && hitsFromY) {
+          vy = -vy;
+          return { x: nextX, y: oldY };
+        }
+
+        // Corner impact: bounce both axes so the logo clears the card cleanly.
+        vx = -vx;
+        vy = -vy;
+        return { x: oldX, y: oldY };
       }
 
       function animate(now) {
         if (landing.style.display === "none") return;
 
-        const dt = Math.min((now - lastTime) / 1000, 0.032);
-        lastTime = now;
-
-        const width = floatingTopgolfLogo.offsetWidth;
-        const height = floatingTopgolfLogo.offsetHeight;
-
-        if (!width || !height) {
+        if (!started || !mask) {
           requestAnimationFrame(animate);
           return;
         }
 
-        const maxX = Math.max(0, window.innerWidth - width);
-        const maxY = Math.max(0, window.innerHeight - height);
+        const dt = Math.min((now - lastTime) / 1000, 0.032);
+        lastTime = now;
 
         const oldX = x;
         const oldY = y;
 
-        x += vx * dt;
-        y += vy * dt;
+        let nextX = x + vx * dt;
+        let nextY = y + vy * dt;
 
-        if (x <= 0) {
-          x = 0;
-          vx = Math.abs(vx);
-        } else if (x >= maxX) {
-          x = maxX;
-          vx = -Math.abs(vx);
-        }
+        ({ x: nextX, y: nextY } = resolveWindowEdges(nextX, nextY));
+        ({ x: nextX, y: nextY } = resolveCardCollision(oldX, oldY, nextX, nextY));
 
-        if (y <= 0) {
-          y = 0;
-          vy = Math.abs(vy);
-        } else if (y >= maxY) {
-          y = maxY;
-          vy = -Math.abs(vy);
-        }
-
-        const card = landingCard.getBoundingClientRect();
-        const oldRight = oldX + width;
-        const oldBottom = oldY + height;
-        const nextRight = x + width;
-        const nextBottom = y + height;
-
-        const overlapsCard =
-          nextRight > card.left - cardGap &&
-          x < card.right + cardGap &&
-          nextBottom > card.top - cardGap &&
-          y < card.bottom + cardGap;
-
-        if (overlapsCard) {
-          if (oldRight <= card.left - cardGap && nextRight > card.left - cardGap) {
-            x = card.left - cardGap - width;
-            vx = -Math.abs(vx);
-          } else if (oldX >= card.right + cardGap && x < card.right + cardGap) {
-            x = card.right + cardGap;
-            vx = Math.abs(vx);
-          } else if (oldBottom <= card.top - cardGap && nextBottom > card.top - cardGap) {
-            y = card.top - cardGap - height;
-            vy = -Math.abs(vy);
-          } else if (oldY >= card.bottom + cardGap && y < card.bottom + cardGap) {
-            y = card.bottom + cardGap;
-            vy = Math.abs(vy);
-          } else {
-            keepOutsideCard(width, height, card);
-          }
-        }
-
-        x = Math.min(Math.max(0, x), maxX);
-        y = Math.min(Math.max(0, y), maxY);
+        x = nextX;
+        y = nextY;
 
         placeLogo();
         requestAnimationFrame(animate);
       }
 
-      floatingTopgolfLogo.addEventListener("load", () => {
-        keepOutsideCard(
-          floatingTopgolfLogo.offsetWidth,
-          floatingTopgolfLogo.offsetHeight,
-          landingCard.getBoundingClientRect()
-        );
-        placeLogo();
-      });
+      function initialize() {
+        if (!rebuildPixelMask()) return;
+
+        randomizeStart();
+        lastTime = performance.now();
+        started = true;
+      }
+
+      if (floatingTopgolfLogo.complete && floatingTopgolfLogo.naturalWidth) {
+        initialize();
+      } else {
+        floatingTopgolfLogo.addEventListener("load", initialize, { once: true });
+      }
 
       window.addEventListener("resize", () => {
-        const width = floatingTopgolfLogo.offsetWidth;
-        const height = floatingTopgolfLogo.offsetHeight;
-        x = Math.min(Math.max(0, x), Math.max(0, window.innerWidth - width));
-        y = Math.min(Math.max(0, y), Math.max(0, window.innerHeight - height));
-        keepOutsideCard(width, height, landingCard.getBoundingClientRect());
-        placeLogo();
+        if (!rebuildPixelMask()) return;
+
+        clampToVisiblePixels();
+
+        // If a resize put the actual logo pixels inside the card, find a clean
+        // random position instead of letting the transparent image box decide.
+        if (pixelMaskHitsCard(x, y)) {
+          randomizeStart();
+        } else {
+          placeLogo();
+        }
       });
 
-      placeLogo();
       requestAnimationFrame(animate);
     }
 
