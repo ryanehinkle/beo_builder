@@ -27,13 +27,32 @@
     #pdfInput { display: none; }
 
     .landing {
+      position: relative;
       min-height: 100vh;
       display: grid;
       place-items: center;
+      overflow: hidden;
       padding: 24px;
     }
 
+    .floating-topgolf-logo {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      width: clamp(82px, 7vw, 112px);
+      height: auto;
+      max-height: 58px;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
+      will-change: transform;
+      filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .32));
+    }
+
     .landing-card {
+      position: relative;
+      z-index: 2;
       width: min(92vw, 440px);
       padding: 46px 36px;
       text-align: center;
@@ -775,6 +794,13 @@
   <input id="pdfInput" type="file" accept="application/pdf,.pdf" multiple />
 
   <main id="landing" class="landing">
+    <img
+      id="floatingTopgolfLogo"
+      class="floating-topgolf-logo"
+      src="assets/logo.png"
+      alt=""
+      aria-hidden="true"
+    />
     <section class="landing-card">
       <div class="landing-brand">
         <img src="assets/beo-logo.png?v=3" alt="" class="landing-brand-logo" />
@@ -965,6 +991,8 @@
 
     const pdfInput = document.getElementById("pdfInput");
     const landing = document.getElementById("landing");
+    const floatingTopgolfLogo = document.getElementById("floatingTopgolfLogo");
+    const landingCard = document.querySelector(".landing-card");
     const workspace = document.getElementById("workspace");
     const managerSection = document.getElementById("managerSection");
     const kitchenSection = document.getElementById("kitchenSection");
@@ -998,6 +1026,152 @@
     let modalRenderTask = null;
     let previewFrameWidth = 0;
     let previewFrameHeight = 0;
+
+    function startFloatingTopgolfLogo() {
+      if (!floatingTopgolfLogo || !landingCard) return;
+
+      let x = 28;
+      let y = 28;
+      let vx = 105;
+      let vy = 82;
+      let lastTime = performance.now();
+      const cardGap = 8;
+
+      function placeLogo() {
+        floatingTopgolfLogo.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+
+      function keepOutsideCard(width, height, card) {
+        const left = x;
+        const right = x + width;
+        const top = y;
+        const bottom = y + height;
+
+        const overlapX = right > card.left - cardGap && left < card.right + cardGap;
+        const overlapY = bottom > card.top - cardGap && top < card.bottom + cardGap;
+
+        if (!overlapX || !overlapY) return;
+
+        const pushLeft = Math.abs(right - (card.left - cardGap));
+        const pushRight = Math.abs((card.right + cardGap) - left);
+        const pushUp = Math.abs(bottom - (card.top - cardGap));
+        const pushDown = Math.abs((card.bottom + cardGap) - top);
+        const smallest = Math.min(pushLeft, pushRight, pushUp, pushDown);
+
+        if (smallest === pushLeft) {
+          x = card.left - cardGap - width;
+          vx = -Math.abs(vx);
+        } else if (smallest === pushRight) {
+          x = card.right + cardGap;
+          vx = Math.abs(vx);
+        } else if (smallest === pushUp) {
+          y = card.top - cardGap - height;
+          vy = -Math.abs(vy);
+        } else {
+          y = card.bottom + cardGap;
+          vy = Math.abs(vy);
+        }
+      }
+
+      function animate(now) {
+        if (landing.style.display === "none") return;
+
+        const dt = Math.min((now - lastTime) / 1000, 0.032);
+        lastTime = now;
+
+        const width = floatingTopgolfLogo.offsetWidth;
+        const height = floatingTopgolfLogo.offsetHeight;
+
+        if (!width || !height) {
+          requestAnimationFrame(animate);
+          return;
+        }
+
+        const maxX = Math.max(0, window.innerWidth - width);
+        const maxY = Math.max(0, window.innerHeight - height);
+
+        const oldX = x;
+        const oldY = y;
+
+        x += vx * dt;
+        y += vy * dt;
+
+        if (x <= 0) {
+          x = 0;
+          vx = Math.abs(vx);
+        } else if (x >= maxX) {
+          x = maxX;
+          vx = -Math.abs(vx);
+        }
+
+        if (y <= 0) {
+          y = 0;
+          vy = Math.abs(vy);
+        } else if (y >= maxY) {
+          y = maxY;
+          vy = -Math.abs(vy);
+        }
+
+        const card = landingCard.getBoundingClientRect();
+        const oldRight = oldX + width;
+        const oldBottom = oldY + height;
+        const nextRight = x + width;
+        const nextBottom = y + height;
+
+        const overlapsCard =
+          nextRight > card.left - cardGap &&
+          x < card.right + cardGap &&
+          nextBottom > card.top - cardGap &&
+          y < card.bottom + cardGap;
+
+        if (overlapsCard) {
+          if (oldRight <= card.left - cardGap && nextRight > card.left - cardGap) {
+            x = card.left - cardGap - width;
+            vx = -Math.abs(vx);
+          } else if (oldX >= card.right + cardGap && x < card.right + cardGap) {
+            x = card.right + cardGap;
+            vx = Math.abs(vx);
+          } else if (oldBottom <= card.top - cardGap && nextBottom > card.top - cardGap) {
+            y = card.top - cardGap - height;
+            vy = -Math.abs(vy);
+          } else if (oldY >= card.bottom + cardGap && y < card.bottom + cardGap) {
+            y = card.bottom + cardGap;
+            vy = Math.abs(vy);
+          } else {
+            keepOutsideCard(width, height, card);
+          }
+        }
+
+        x = Math.min(Math.max(0, x), maxX);
+        y = Math.min(Math.max(0, y), maxY);
+
+        placeLogo();
+        requestAnimationFrame(animate);
+      }
+
+      floatingTopgolfLogo.addEventListener("load", () => {
+        keepOutsideCard(
+          floatingTopgolfLogo.offsetWidth,
+          floatingTopgolfLogo.offsetHeight,
+          landingCard.getBoundingClientRect()
+        );
+        placeLogo();
+      });
+
+      window.addEventListener("resize", () => {
+        const width = floatingTopgolfLogo.offsetWidth;
+        const height = floatingTopgolfLogo.offsetHeight;
+        x = Math.min(Math.max(0, x), Math.max(0, window.innerWidth - width));
+        y = Math.min(Math.max(0, y), Math.max(0, window.innerHeight - height));
+        keepOutsideCard(width, height, landingCard.getBoundingClientRect());
+        placeLogo();
+      });
+
+      placeLogo();
+      requestAnimationFrame(animate);
+    }
+
+    startFloatingTopgolfLogo();
 
     function openHelpModal() {
       helpModal.classList.add("open");
