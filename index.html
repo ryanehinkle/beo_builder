@@ -2297,7 +2297,10 @@
         return "manager";
       }
 
-      if (/Internal\s+Catering\s+BEO/i.test(text) || /Internal\s+BEO/i.test(text)) {
+      if (
+        /Internal\s+(?:EA\s+|Catering\s+)?BEO/i.test(text) ||
+        /Internal\s+BEO/i.test(text)
+      ) {
         return "internal";
       }
 
