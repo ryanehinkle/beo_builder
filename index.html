@@ -894,6 +894,16 @@
       <div id="kitchenGrid" class="pdf-grid" aria-live="polite"></div>
     </section>
 
+    <section id="internalSection" class="beo-section">
+      <h2 class="section-header">Internal BEOs</h2>
+      <div id="internalGrid" class="pdf-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="miscSection" class="beo-section">
+      <h2 class="section-header">Misc BEOs</h2>
+      <div id="miscGrid" class="pdf-grid" aria-live="polite"></div>
+    </section>
+
     <div class="merge-area">
       <div class="merge-options">
         <div class="options-label">Options</div>
@@ -961,8 +971,10 @@
           <div class="help-step-number">Step 3</div>
           <h3>Everything is organized automatically</h3>
           <p>
-            BEO Builder sorts the individual events by <strong>event date</strong> and then
-            <strong>event start time</strong>. In Printable mode, each individual event is kept on
+            BEO Builder separates uploads into <strong>Manager</strong>, <strong>Kitchen</strong>,
+            <strong>Internal</strong>, and <strong>Misc</strong>, then sorts the individual events by
+            <strong>event date</strong> and <strong>event start time</strong>. In Printable mode,
+            each individual event is kept on
             an even number of pages so the next BEO starts correctly when the final file is printed
             double-sided.
           </p>
@@ -1052,8 +1064,12 @@
     const workspaceHomeLink = document.getElementById("workspaceHomeLink");
     const managerSection = document.getElementById("managerSection");
     const kitchenSection = document.getElementById("kitchenSection");
+    const internalSection = document.getElementById("internalSection");
+    const miscSection = document.getElementById("miscSection");
     const managerGrid = document.getElementById("managerGrid");
     const kitchenGrid = document.getElementById("kitchenGrid");
+    const internalGrid = document.getElementById("internalGrid");
+    const miscGrid = document.getElementById("miscGrid");
     const uploadTriggers = document.querySelectorAll(".upload-trigger");
     const pdfModal = document.getElementById("pdfModal");
     const modalClose = document.getElementById("modalClose");
@@ -1697,9 +1713,15 @@
         if (beoType === "kitchen") {
           kitchenSection.classList.add("visible");
           kitchenGrid.appendChild(card);
-        } else {
+        } else if (beoType === "manager") {
           managerSection.classList.add("visible");
           managerGrid.appendChild(card);
+        } else if (beoType === "internal") {
+          internalSection.classList.add("visible");
+          internalGrid.appendChild(card);
+        } else {
+          miscSection.classList.add("visible");
+          miscGrid.appendChild(card);
         }
 
         updateSectionVisibility();
@@ -1726,6 +1748,8 @@
 
         sortGrid(managerGrid);
         sortGrid(kitchenGrid);
+        sortGrid(internalGrid);
+        sortGrid(miscGrid);
         card.classList.add("loaded");
         pendingFiles -= 1;
         updateMergeButton();
@@ -2018,7 +2042,11 @@
     }
 
     function updateMergeButton() {
-      const hasFiles = managerGrid.children.length > 0 || kitchenGrid.children.length > 0;
+      const hasFiles =
+        managerGrid.children.length > 0 ||
+        kitchenGrid.children.length > 0 ||
+        internalGrid.children.length > 0 ||
+        miscGrid.children.length > 0;
       mergeButton.disabled = !hasFiles || pendingFiles > 0;
       mergeButton.textContent = pendingFiles > 0 ? "Reading BEOs…" : "Merge";
     }
@@ -2032,6 +2060,8 @@
       try {
         const managerCards = getSortedCards(managerGrid);
         const kitchenCards = getSortedCards(kitchenGrid);
+        const internalCards = getSortedCards(internalGrid);
+        const miscCards = getSortedCards(miscGrid);
         const removeBlanks =
           document.querySelector('input[name="mergeMode"]:checked')?.value === "no-blanks";
         const removeFlexes = removeKitchenFlexes.checked;
@@ -2055,6 +2085,28 @@
           downloadMergedPdf(
             bytes,
             buildMergedFilename("Kitchens", kitchenCards, removeBlanks)
+          );
+        }
+
+        if (internalCards.length) {
+          const bytes = await mergeCards(internalCards, {
+            removeBlanks,
+            removeKitchenFlexes: false
+          });
+          downloadMergedPdf(
+            bytes,
+            buildMergedFilename("Internal BEOs", internalCards, removeBlanks)
+          );
+        }
+
+        if (miscCards.length) {
+          const bytes = await mergeCards(miscCards, {
+            removeBlanks,
+            removeKitchenFlexes: false
+          });
+          downloadMergedPdf(
+            bytes,
+            buildMergedFilename("Misc BEOs", miscCards, removeBlanks)
           );
         }
       } catch (error) {
@@ -2245,12 +2297,18 @@
         return "manager";
       }
 
-      return "manager";
+      if (/Internal\s+Catering\s+BEO/i.test(text) || /Internal\s+BEO/i.test(text)) {
+        return "internal";
+      }
+
+      return "misc";
     }
 
     function updateSectionVisibility() {
       managerSection.classList.toggle("visible", managerGrid.children.length > 0);
       kitchenSection.classList.toggle("visible", kitchenGrid.children.length > 0);
+      internalSection.classList.toggle("visible", internalGrid.children.length > 0);
+      miscSection.classList.toggle("visible", miscGrid.children.length > 0);
     }
 
     function extractEventDate(text) {
