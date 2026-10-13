@@ -1052,6 +1052,10 @@
 
     const { PDFDocument } = window.PDFLib;
 
+    // Temporary override: keep Printable mode active while preserving both merge paths.
+    // Set this to false to bring back the Printable / Remove blank pages toggle.
+    const FORCE_PRINTABLE_MODE = true;
+
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
@@ -1080,6 +1084,13 @@
     const modalCanvasWrap = document.getElementById("modalCanvasWrap");
     const mergeButton = document.getElementById("mergeButton");
     const removeKitchenFlexes = document.getElementById("removeKitchenFlexes");
+
+    if (FORCE_PRINTABLE_MODE) {
+      // Hide the mode selector but leave its original markup and functionality intact.
+      document.querySelector(".segmented-control").style.display = "none";
+      document.getElementById("printableMode").checked = true;
+      document.getElementById("noBlanksMode").disabled = true;
+    }
     const helpTriggers = document.querySelectorAll(".help-trigger");
     const helpModal = document.getElementById("helpModal");
     const helpClose = document.getElementById("helpClose");
@@ -2063,6 +2074,7 @@
         const internalCards = getSortedCards(internalGrid);
         const miscCards = getSortedCards(miscGrid);
         const removeBlanks =
+          !FORCE_PRINTABLE_MODE &&
           document.querySelector('input[name="mergeMode"]:checked')?.value === "no-blanks";
         const removeFlexes = removeKitchenFlexes.checked;
 
