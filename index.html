@@ -2041,7 +2041,7 @@
       // Match actual buffet package names in the Food products, rather than
       // guessing from any catering order. Shareable Bites, Gather Platters,
       // Crowd Pleasers, Youth Platters and field-trip meals stay single-copy.
-      return /\b(?:Ultimate\s+Bites|Fajita\s+Fiesta|Smokehouse\s+BBQ|The\s+(?:Premium|Classic|Signature|Original)|Chef['’]s\s+Table|(?:Breakfast|Brunch|Lunch|Dinner)\s+Buffet|Buffet\s+(?:Package|Menu))\b/i.test(foodProducts);
+      return /\b(?:Ultimate\s+Bites|Fajita\s+Fiesta|Smokehouse\s+BBQ|The\s+(?:Premium|Classic|Signature|Original)|Chef['’]s\s+Table|(?:Breakfast|Brunch|Lunch|Dinner)\s+Buffet|Continental|Buffet\s+(?:Package|Menu))\b/i.test(foodProducts);
     }
 
     async function isBlankPage(page, textContent) {
