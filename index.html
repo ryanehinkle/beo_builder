@@ -1009,9 +1009,9 @@
           <p>
             <strong>Printable</strong> preserves the double-sided printing layout. <strong>Remove blank
             pages</strong> creates a compact version without blank pages for digital viewing. For Kitchen BEOs,
-            you can remove flex events with no Kitchen items or print two copies of each
-            buffet event. Crowd Pleasers, youth events, and other non-buffet menus stay
-            as single copies.
+            you can remove flex events with no Kitchen items or print two copies of
+            Kitchen BEOs with Food products. Crowd Pleaser and youth/field-trip
+            food menus stay as single copies.
           </p>
           <div class="help-screenshot-frame">
             <img
@@ -1684,7 +1684,8 @@
                 beoNumber: currentBeoNumber,
                 pages: [],
                 hasKitchenItems: false,
-                hasBuffetMenu: false,
+                hasFoodProducts: false,
+                hasExcludedKitchenMenu: false,
                 hasEventNotes: false,
                 hasEventHeader: false,
                 dateMs: null,
@@ -1698,7 +1699,9 @@
             const event = eventPages.get(currentBeoNumber);
             event.pages.push(pageNumber - 1);
             event.hasKitchenItems ||= hasKitchenItems(pageText);
-            event.hasBuffetMenu ||= isBuffetKitchenMenu(extractKitchenFoodProducts(pageText));
+            const foodProducts = extractKitchenFoodProducts(pageText);
+            event.hasFoodProducts ||= foodProducts.length > 0;
+            event.hasExcludedKitchenMenu ||= isExcludedKitchenMenu(foodProducts);
             event.hasEventNotes ||= /EVENT\s+NOTES/i.test(pageText);
             event.hasEventHeader ||= /Event\s*Date:/i.test(pageText);
 
@@ -1745,12 +1748,12 @@
           return {
             ...event,
             isKitchenFlex,
-            // Only full Kitchen events with food are eligible for extra copies.
-            // Exclude the known alternative menus; never duplicate unknown PDFs.
-            isKitchenBuffet: beoType === "kitchen" &&
+            // Duplicate all Kitchen BEOs with Food products except the explicit
+            // non-buffet formats. No buffet-name whitelist, so new menus work.
+            isKitchenDoubleCopy: beoType === "kitchen" &&
               !isKitchenFlex &&
-              event.hasKitchenItems &&
-              event.hasBuffetMenu
+              event.hasFoodProducts &&
+              !event.hasExcludedKitchenMenu
           };
         });
         pdfEvents.set(card, parsedEvents);
@@ -2037,11 +2040,11 @@
       return notes ? remaining.slice(0, notes.index) : remaining;
     }
 
-    function isBuffetKitchenMenu(foodProducts) {
-      // Match actual buffet package names in the Food products, rather than
-      // guessing from any catering order. Shareable Bites, Gather Platters,
-      // Crowd Pleasers, Youth Platters and field-trip meals stay single-copy.
-      return /\b(?:Ultimate\s+Bites|Fajita\s+Fiesta|Smokehouse\s+BBQ|The\s+(?:Premium|Classic|Signature|Original)|Chef['’]s\s+Table|(?:Breakfast|Brunch|Lunch|Dinner)\s+Buffet|Continental|Buffet\s+(?:Package|Menu))\b/i.test(foodProducts);
+    function isExcludedKitchenMenu(foodProducts) {
+      // Classify ONLY Food products. Neither event descriptions nor internal
+      // notes may exclude a normal buffet (e.g., Packsmart mentions "youth").
+      // Everything else with Food products qualifies, even newly named buffets.
+      return /\b(?:crowd\s*pleasers?|youth|field\s*trip|kids?\s*(?:meals?|menus?|packages?|platters?)|children['’]?s\s*(?:meals?|menus?|packages?|platters?)|play\s*(?:and|&)\s*eat|play\s*it\s*forward|growing\s*the\s*game)\b/i.test(foodProducts);
     }
 
     async function isBlankPage(page, textContent) {
@@ -2294,7 +2297,7 @@
 
         // Print complete copies back-to-back, never page-by-page. Padding EACH
         // copy separately keeps every event's front/back aligned when duplexed.
-        const copies = twoBuffetCopies && event.isKitchenBuffet ? 2 : 1;
+        const copies = twoBuffetCopies && event.isKitchenDoubleCopy ? 2 : 1;
         for (let copy = 0; copy < copies; copy++) {
           const copiedPages = await merged.copyPages(sourcePdf, pageIndices);
           copiedPages.forEach((page) => merged.addPage(page));
