@@ -1010,8 +1010,8 @@
             <strong>Printable</strong> preserves the double-sided printing layout. <strong>Remove blank
             pages</strong> creates a compact version without blank pages for digital viewing. For Kitchen BEOs,
             you can remove flex events with no Kitchen items or print two copies of
-            Kitchen BEOs with Food products. Crowd Pleaser and youth/field-trip
-            food menus stay as single copies.
+            Kitchen BEOs with Food products, including field trips. Only Flex,
+            Crowd Pleaser, and Youth food packages stay as single copies.
           </p>
           <div class="help-screenshot-frame">
             <img
@@ -1748,8 +1748,8 @@
           return {
             ...event,
             isKitchenFlex,
-            // Duplicate all Kitchen BEOs with Food products except the explicit
-            // non-buffet formats. No buffet-name whitelist, so new menus work.
+            // Double Kitchen BEOs with Food products except Flex, Crowd
+            // Pleaser, or Youth food packages. Field trips ARE included.
             isKitchenDoubleCopy: beoType === "kitchen" &&
               !isKitchenFlex &&
               event.hasFoodProducts &&
@@ -2044,7 +2044,10 @@
       // Classify ONLY Food products. Neither event descriptions nor internal
       // notes may exclude a normal buffet (e.g., Packsmart mentions "youth").
       // Everything else with Food products qualifies, even newly named buffets.
-      return /\b(?:crowd\s*pleasers?|youth|field\s*trip|kids?\s*(?:meals?|menus?|packages?|platters?)|children['’]?s\s*(?:meals?|menus?|packages?|platters?)|play\s*(?:and|&)\s*eat|play\s*it\s*forward|growing\s*the\s*game)\b/i.test(foodProducts);
+      // Only the three excluded package types: Flex, Crowd Pleaser, Youth.
+      // Field Trip (including Play & Eat), Shareable Bites, and newly named
+      // packages should still receive two copies when Food products exist.
+      return /\b(?:flex|crowd\s*pleasers?|youth)\b/i.test(foodProducts);
     }
 
     async function isBlankPage(page, textContent) {
