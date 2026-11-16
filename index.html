@@ -1684,7 +1684,7 @@
                 beoNumber: currentBeoNumber,
                 pages: [],
                 hasKitchenItems: false,
-                hasNonBuffetMenu: false,
+                hasBuffetMenu: false,
                 hasEventNotes: false,
                 hasEventHeader: false,
                 dateMs: null,
@@ -1698,7 +1698,7 @@
             const event = eventPages.get(currentBeoNumber);
             event.pages.push(pageNumber - 1);
             event.hasKitchenItems ||= hasKitchenItems(pageText);
-            event.hasNonBuffetMenu ||= hasNonBuffetKitchenMenu(pageText);
+            event.hasBuffetMenu ||= isBuffetKitchenMenu(extractKitchenFoodProducts(pageText));
             event.hasEventNotes ||= /EVENT\s+NOTES/i.test(pageText);
             event.hasEventHeader ||= /Event\s*Date:/i.test(pageText);
 
@@ -1750,7 +1750,7 @@
             isKitchenBuffet: beoType === "kitchen" &&
               !isKitchenFlex &&
               event.hasKitchenItems &&
-              !event.hasNonBuffetMenu
+              event.hasBuffetMenu
           };
         });
         pdfEvents.set(card, parsedEvents);
@@ -2024,16 +2024,24 @@
       );
     }
 
-    function hasNonBuffetKitchenMenu(text) {
-      // These are distinct Kitchen formats, not full buffet events.
-      // Flex events are already identified separately by missing Kitchen items.
-      return (
-        /\bcrowd\s*pleasers?\b/i.test(text) ||
-        /\byouth\b/i.test(text) ||
-        /\bkids?(?:['’]s)?\s+(?:meal|menu|package)\b/i.test(text) ||
-        /\bplay\s*it\s*forward\b/i.test(text) ||
-        /\bgrowing\s*the\s*game\b/i.test(text)
-      );
+    function extractKitchenFoodProducts(pageText) {
+      // Only read the Food table. Notes, booking type, location, and event
+      // details can mention "youth", "buffet", etc. without describing
+      // what the kitchen is actually preparing.
+      const header = /\bFood\b\s+\bPRODUCT\s+NAME\b/i.exec(pageText);
+      if (!header) return "";
+
+      const start = header.index + header[0].length;
+      const remaining = pageText.slice(start);
+      const notes = /\b(?:EVENT|ALLERGY|INTERNAL)\s+NOTES\b|\bIMPORTANT\s+REMINDERS\b/i.exec(remaining);
+      return notes ? remaining.slice(0, notes.index) : remaining;
+    }
+
+    function isBuffetKitchenMenu(foodProducts) {
+      // Match actual buffet package names in the Food products, rather than
+      // guessing from any catering order. Shareable Bites, Gather Platters,
+      // Crowd Pleasers, Youth Platters and field-trip meals stay single-copy.
+      return /\b(?:Ultimate\s+Bites|Fajita\s+Fiesta|Smokehouse\s+BBQ|The\s+(?:Premium|Classic|Signature|Original)|Chef['’]s\s+Table|(?:Breakfast|Brunch|Lunch|Dinner)\s+Buffet|Buffet\s+(?:Package|Menu))\b/i.test(foodProducts);
     }
 
     async function isBlankPage(page, textContent) {
